@@ -64,10 +64,49 @@ def get_standardized_matrix(X):
     @return: a standardized matrix where each row has mean 0 and var 1/ncols
     """
     nrows, ncols = X.shape
-    Z = np.vstack((row - np.mean(row)) for row in X)
+    Z = get_row_centered_matrix(X)
     Z = np.vstack(row / np.std(row) for row in Z)
     Z /= math.sqrt(ncols)
     return Z
+
+def get_row_centered_matrix(M):
+    """
+    @param M: a matrix
+    @return: each row sums to zero
+    """
+    return np.vstack((row - np.mean(row)) for row in M)
+
+def get_column_centered_matrix(M):
+    """
+    @param M: a matrix
+    @return: each column sums to zero
+    """
+    return get_row_centered_matrix(M.T).T
+
+def get_doubly_centered_matrix(M):
+    """
+    @param M: a matrix
+    @return: each row and column sums to zero
+    """
+    return get_row_centered_matrix(get_column_centered_matrix(M))
+
+def sum_last_rows(M, k):
+    """
+    Get the matrix that is M with its last k rows summed.
+    @param M: a matrix
+    @param k: the number of trailing rows to sum
+    @return: the modified matrix
+    """
+    return np.vstack([M[:-k], np.sum(M[-k:], axis=0)])
+
+def sum_last_columns(M, k):
+    """
+    Get the matrix that is M with its last k columns summed.
+    @param M: a matrix
+    @param k: the number of trailing columns to sum
+    @return: the modified matrix
+    """
+    return sum_last_rows(M.T, k).T
 
 def standardized_to_augmented_A(Z):
     """
@@ -109,6 +148,9 @@ def standardized_to_augmented_C(Z):
     U, S_array, VT = np.linalg.svd(Z, full_matrices=0)
     Z_reduced = np.array([row[:-1] for row in U*S_array])
     return reduced_khatri_rao_row_square(Z_reduced)
+
+def is_small(x, eps=1e-12):
+    return abs(x) < eps
 
 
 class TestMe(unittest.TestCase):
@@ -177,6 +219,37 @@ class TestMe(unittest.TestCase):
             self.assertEqual(observed_ncols, expected_ncols, msg=f.__name__)
             observed_RoR = np.dot(W, W.T)
             self.assertAllClose(observed_RoR, expected_RoR, msg=f.__name__)
+
+    def test_trailing_row_and_column_summation(self):
+        M = np.array([[1,2,3],[4,5,6],[7,8,9]])
+        # test trailing row summation
+        expected = np.array([[1,2,3],[11,13,15]])
+        observed = sum_last_rows(M, 2)
+        self.assertAllClose(observed, expected)
+        # test trailing column summation
+        expected = np.array([[1,5],[4,11],[7,17]])
+        observed = sum_last_columns(M, 2)
+        self.assertAllClose(observed, expected)
+
+    def test_laplacian_summation_shortcut(self):
+        p = 100
+        n = 7
+        k = 3
+        X = np.random.random((p, n))
+        # get a matrix that we are treating like the laplacian
+        HDH = get_doubly_centered_matrix(np.corrcoef(X) ** 2)
+        L = np.linalg.pinv(HDH)
+        L_summed = sum_last_rows(sum_last_columns(L, k), k)
+        # get the square root of the summed laplacian without using pxp operations
+        Z = get_standardized_matrix(X)
+        Q = standardized_to_augmented_C(Z)
+        W = get_column_centered_matrix(Q)
+        U, S_array, VT = np.linalg.svd(W, full_matrices=0)
+        S_pinv_array = np.array([0 if is_small(x) else 1/x for x in S_array])
+        L_summed_sqrt = sum_last_rows(U*S_pinv_array, k)
+        # assert that the square of the square root is the summed laplacian
+        L_summed_reconstructed = np.dot(L_summed_sqrt, L_summed_sqrt.T)
+        self.assertAllClose(L_summed_reconstructed, L_summed)
 
 
 if __name__ == '__main__':
