@@ -161,21 +161,22 @@ class TestMe(unittest.TestCase):
     def test_standardized_to_augmented(self):
         """
         Show 3 ways to get a sqrt of a Hadamard squared correlation matrix.
-        The first way needs n*n columns.
-        The second way needs n*(n+1)/2 columns.
-        The third way needs n*(n-1)/2 columns.
         """
-        X = np.random.random((20, 3))
+        p = 20
+        n = 3
+        X = np.random.random((p, n))
         Z = get_standardized_matrix(X)
-        expected = hadamard_square(np.corrcoef(X))
-        functions = [
-                standardized_to_augmented_A,
-                standardized_to_augmented_B,
-                standardized_to_augmented_C]
-        for f in functions:
+        expected_RoR = hadamard_square(np.corrcoef(X))
+        functions_and_ncols = [
+                (standardized_to_augmented_A, n*n),
+                (standardized_to_augmented_B, (n*(n+1))/2),
+                (standardized_to_augmented_C, (n*(n-1))/2)]
+        for f, expected_ncols in functions_and_ncols:
             W = f(Z)
-            observed = np.dot(W, W.T)
-            self.assertAllClose(observed, expected, msg=f.__name__)
+            observed_nrows, observed_ncols = W.shape
+            self.assertEqual(observed_ncols, expected_ncols)
+            observed_RoR = np.dot(W, W.T)
+            self.assertAllClose(observed_RoR, expected_RoR, msg=f.__name__)
 
 
 if __name__ == '__main__':
