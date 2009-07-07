@@ -174,7 +174,7 @@ class TestMe(unittest.TestCase):
         for f, expected_ncols in functions_and_ncols:
             W = f(Z)
             observed_nrows, observed_ncols = W.shape
-            self.assertEqual(observed_ncols, expected_ncols)
+            self.assertEqual(observed_ncols, expected_ncols, msg=f.__name__)
             observed_RoR = np.dot(W, W.T)
             self.assertAllClose(observed_RoR, expected_RoR, msg=f.__name__)
 
