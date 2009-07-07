@@ -1,4 +1,5 @@
-The khatrisvd module will probably depend on python2.6 features.
+The khatrisvd package will probably depend on python 2.6 features.
+
 
 To check the speed of singular value decomposition on MATLAB vs.
 whatever linear algebra library Numpy is connected to,
@@ -9,3 +10,9 @@ svdtimer.m
 Usage:
 python svdtimer.py
 matlab -nojvm -nodisplay -nodesktop -nosplash -r svdtimer
+
+
+Each module will run a self-test when run from the command line.
+Use the python coverage program to check the coverage of the tests.
+coverage -x <module.py>
+coverage -r <module.py>
