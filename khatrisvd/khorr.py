@@ -152,6 +152,19 @@ def standardized_to_augmented_C(Z):
 def is_small(x, eps=1e-12):
     return abs(x) < eps
 
+def data_to_laplacian_sqrt(X):
+    """
+    @param X: a data matrix
+    @return: a matrix whose product with its transpose is like a Laplacian
+    """
+    Z = get_standardized_matrix(X)
+    Q = standardized_to_augmented_C(Z)
+    W = get_column_centered_matrix(Q)
+    U, S_array, VT = np.linalg.svd(W, full_matrices=0)
+    S_pinv_array = np.array([0 if is_small(x) else 1/x for x in S_array])
+    L_sqrt = U*S_pinv_array
+    return L_sqrt
+
 
 class TestMe(unittest.TestCase):
 
@@ -241,12 +254,8 @@ class TestMe(unittest.TestCase):
         L = np.linalg.pinv(HDH)
         L_summed = sum_last_rows(sum_last_columns(L, k), k)
         # get the square root of the summed laplacian without using pxp operations
-        Z = get_standardized_matrix(X)
-        Q = standardized_to_augmented_C(Z)
-        W = get_column_centered_matrix(Q)
-        U, S_array, VT = np.linalg.svd(W, full_matrices=0)
-        S_pinv_array = np.array([0 if is_small(x) else 1/x for x in S_array])
-        L_summed_sqrt = sum_last_rows(U*S_pinv_array, k)
+        L_sqrt = data_to_laplacian_sqrt(X)
+        L_summed_sqrt = sum_last_rows(L_sqrt, k)
         # assert that the square of the square root is the summed laplacian
         L_summed_reconstructed = np.dot(L_summed_sqrt, L_summed_sqrt.T)
         self.assertAllClose(L_summed_reconstructed, L_summed)
