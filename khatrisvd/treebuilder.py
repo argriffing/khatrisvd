@@ -244,8 +244,8 @@ class TestMe(unittest.TestCase):
         X = np.random.random((p, n))
         L_sqrt = khorr.data_to_laplacian_sqrt(X)
         splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
-        for s in splits:
-            print split_to_string(s)
+        #for s in splits:
+            #print split_to_string(s)
 
     def test_rmerge(self):
         index_set = set([1, 2])
@@ -253,6 +253,25 @@ class TestMe(unittest.TestCase):
         expected = np.array([[1,2,3,4],[14,16,18,20],[13,14,15,16]])
         observed = rmerge(M, index_set)
         self.assertAllClose(observed, expected)
+
+    def test_cool(self):
+        # read some test data eric made
+        fin = open('cool.txt')
+        lines = fin.readlines()
+        fin.close()
+        arr = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            row = [float(x) for x in line.split()]
+            arr.append(row)
+        X = np.array(arr)
+        # analyze the data
+        L_sqrt = khorr.data_to_laplacian_sqrt(X)
+        splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
+        for s in splits:
+            print split_to_string(s)
 
 
 if __name__ == '__main__':
