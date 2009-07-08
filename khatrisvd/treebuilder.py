@@ -226,6 +226,19 @@ def get_splits(initial_L_sqrt, split_function, update_function, on_label_split=N
             continue
     return label_split_set
 
+def get_data(filename):
+    fin = open(filename)
+    lines = fin.readlines()
+    fin.close()
+    arr = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        row = [float(x) for x in line.split()]
+        arr.append(row)
+    return np.array(arr)
+
 
 class TestMe(unittest.TestCase):
 
@@ -255,23 +268,19 @@ class TestMe(unittest.TestCase):
         self.assertAllClose(observed, expected)
 
     def test_cool(self):
-        # read some test data eric made
-        fin = open('cool.txt')
-        lines = fin.readlines()
-        fin.close()
-        arr = []
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            row = [float(x) for x in line.split()]
-            arr.append(row)
-        X = np.array(arr)
-        # analyze the data
+        X = get_data('cool.txt')
         L_sqrt = khorr.data_to_laplacian_sqrt(X)
         splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
-        for s in splits:
-            print split_to_string(s)
+        #for s in splits:
+            #print split_to_string(s)
+
+    def test_kh_dataset(self):
+        X = get_data('kh-dataset.txt')
+        L_sqrt = khorr.data_to_laplacian_sqrt(X)
+        splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
+        half_splits = [min((len(h), h) for h in s) for s in splits]
+        for half_split_len, half_split in sorted(half_splits):
+            print set_to_string(half_split)
 
 
 if __name__ == '__main__':
