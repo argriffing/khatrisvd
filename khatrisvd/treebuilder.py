@@ -109,7 +109,7 @@ def build_tree(L_sqrt, ordered_labels, tree_data):
         # record the outgroup label for this subtree
         outgroup_label = tree_data.decrement_outgroup_label()
         # create the ordered list of labels corresponding to leaves of the subtree
-        next_ordered_labels = [ordered_labels[i] for i in index_selection]
+        next_ordered_labels = [ordered_labels[i] for i in sorted(index_selection)]
         next_ordered_labels.append(outgroup_label)
         # create the next matrix with rows conformant to the ordered labels
         next_L_sqrt = tree_data.update_function(L_sqrt, index_complement)
