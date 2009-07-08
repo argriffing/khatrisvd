@@ -121,10 +121,11 @@ class Node:
         """
         @return: part of a newick string corresponding to the subtree
         """
-        if self.has_label():
-            return '%d' % self.label
+        name = str(self.label) if self.has_label() else ''
+        if not self.children:
+            return name
         else:
-            return '(' + ', '.join(child.get_newick_substring() for child in self.children) + ')'
+            return '(' + ', '.join(child.get_newick_substring() for child in self.children) + ')' + name
 
 
 def create_tree(term):
@@ -169,6 +170,9 @@ class TestMe(unittest.TestCase):
         root.reroot()
         nodes = root.preorder()
         nodes[-1].reroot()
+        observed = nodes[-1].get_newick_string()
+        expected = '((0, ()))1;'
+        self.assertEqual(expected, observed)
         root.reroot()
         observed = root.get_newick_string()
         expected = '(((0, 1)));'
@@ -193,7 +197,7 @@ class TestMe(unittest.TestCase):
         expected = '(0, 1, (2, 3));'
         observed = root.get_newick_string()
         self.assertEqual(expected, observed)
-        # trying to remove the root of a degree three node fails
+        # trying to remove a degree three node fails
         self.assertRaises(ValueError, root.remove)
 
 
