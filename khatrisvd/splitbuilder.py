@@ -128,7 +128,7 @@ def index_split_to_label_split(index_split, label_sets):
         label_split.add(frozenset(labels))
     return frozenset(label_split)
 
-def split_using_svd(L_sqrt, epsilon=1e-14):
+def split_svd(L_sqrt, epsilon=1e-14):
     """
     If a degenerate split is found then a DegenerateSplitException is raised.
     @param L_sqrt: the matrix square root of a Laplacian
@@ -254,7 +254,7 @@ class TestMe(unittest.TestCase):
         n = 7
         X = np.random.random((p, n))
         L_sqrt = khorr.data_to_laplacian_sqrt(X)
-        splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
+        splits = get_splits(L_sqrt, split_svd, update_using_laplacian)
         #for s in splits:
             #print split_to_string(s)
 
@@ -268,14 +268,14 @@ class TestMe(unittest.TestCase):
     def test_cool(self):
         X = get_data('cool.txt')
         L_sqrt = khorr.data_to_laplacian_sqrt(X)
-        splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
+        splits = get_splits(L_sqrt, split_svd, update_using_laplacian)
         #for s in splits:
             #print split_to_string(s)
 
     def test_kh_dataset(self):
         X = get_data('kh-dataset.txt')
         L_sqrt = khorr.data_to_laplacian_sqrt(X)
-        splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
+        splits = get_splits(L_sqrt, split_svd, update_using_laplacian)
         half_splits = [min((len(h), h) for h in s) for s in splits]
         for half_split_len, half_split in sorted(half_splits):
             print set_to_string(half_split)

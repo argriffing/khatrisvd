@@ -5,7 +5,6 @@ Instead of repeatedly splitting a distance matrix,
 the splitting function will repeatedly split a rectangular matrix.
 """
 
-#TODO some code has been copypasted from splitbuilder; remove duplicated code
 
 import mtree
 import khorr
@@ -15,143 +14,6 @@ import numpy as np
 
 import unittest
 
-
-class InvalidSpectralSplitException(Exception):
-    """
-    This exception is raised when a spectral split fails horribly.
-    In particular, it is raised when an eigenvector based splitting method
-    gets an eigenvector that does not define any split, even a degenerate split.
-    """
-    def __init__(self, L_sqrt):
-        """
-        @param L_sqrt: sqrt of Laplacian to save for posterity
-        """
-        Exception.__init__(self)
-        self.L_sqrt = L_sqrt
-
-
-class DegenerateSplitException(Exception):
-    """
-    This exception is raised when one taxon is split from the rest.
-    This kind of split is not informative.
-    """
-    def __init__(self, index):
-        """
-        @param index: the degenerate index to blame later
-        """
-        Exception.__init__(self)
-        self.index = index
-
-
-def make_split(a, b):
-    """
-    This is a helper function.
-    @param a: a sequence of hashable values
-    @param b: a sequence of hashable values
-    @return: a split
-    """
-    return frozenset((frozenset(a), frozenset(b)))
-
-def set_to_string(my_set):
-    """
-    @param my_set: a sortable sequence
-    @return: a string
-    """
-    return '{' + ', '.join(str(x) for x in sorted(my_set)) + '}'
-
-def split_to_string(my_split):
-    """
-    @param my_split: a frozenset of some frozensets
-    @return: a string
-    """
-    return set_to_string([set_to_string(x) for x in my_split])
-
-def eigenvector_to_split(v, epsilon=1e-14):
-    """
-    This is a helper function.
-    @param v: the signs of the loadings of this eigenvector define the split
-    @param epsilon: negligible eigenvector loadings will be treated as zero
-    @return: a split
-    """
-    vprime = [0.0 if abs(x) < epsilon else x for x in v]
-    positive_indices = [i for i, x in enumerate(vprime) if x > 0]
-    nonpositive_indices = [i for i, x in enumerate(vprime) if x <= 0]
-    return make_split(positive_indices, nonpositive_indices)
-
-def vmerge(label_sets, index_set):
-    """
-    @param label_sets: an ordered list of sets of disjoint integers
-    @param index_set: a set of indices to merge
-    @return: a stably merged list of label sets
-    """
-    # define the merged set of labels
-    merged_labels = set()
-    for i in index_set:
-        merged_labels.update(label_sets[i])
-    # get the min index which will be replaced
-    min_index = min(index_set)
-    # define the new list of label sets
-    next_label_sets = []
-    for i, label_set in enumerate(label_sets):
-        if i == min_index:
-            next_label_sets.append(merged_labels)
-        elif i not in index_set:
-            next_label_sets.append(label_set)
-    return next_label_sets
-
-def rmerge(M, index_set):
-    """
-    Merge rows indexed by an index set.
-    The row indexed by the minimum index will be replaced by the sum of the rows.
-    The other indexed rows will be removed.
-    The order of rows indexed by indices not in the set will be stable.
-    @param M: a matrix
-    @param index_set: a set of row indices to merge
-    """
-    n = len(M)
-    index_sets = vmerge([set([i]) for i in range(n)], index_set)
-    n_small = len(index_sets)
-    M_small = np.zeros((n, n_small))
-    rows = []
-    for i, set_i in enumerate(index_sets):
-        rows.append(sum(M[k] for k in set_i))
-    return np.array(rows)
-
-def index_split_to_label_split(index_split, label_sets):
-    """
-    This is a helper function which creates a label split from an index split.
-    @param index_split: a split of indices of the label sets
-    @param label_sets: a set of labels for each index
-    @return: a label split defined by the index split of the label sets
-    """
-    label_split = set()
-    for index_selection in index_split:
-        labels = set()
-        for i in index_selection:
-            labels.update(label_sets[i])
-        label_split.add(frozenset(labels))
-    return frozenset(label_split)
-
-def split_svd(L_sqrt, epsilon=1e-14):
-    """
-    If a degenerate split is found then a DegenerateSplitException is raised.
-    @param L_sqrt: the matrix square root of a Laplacian
-    @param epsilon: small eigenvector loadings will be treated as zero
-    @return: a set of two index sets defining a split of the indices
-    """
-    # get the fiedler vector
-    v = sqrt_laplacian_to_fiedler(L_sqrt)
-    # get the eigensplit
-    eigensplit = eigenvector_to_split(v, epsilon)
-    # validate the split
-    min_cardinality, min_set = min((len(s), s) for s in eigensplit)
-    if min_cardinality == 0:
-        raise InvalidSpectralSplitException(D)
-    elif min_cardinality == 1:
-        index, = min_set
-        raise DegenerateSplitException(index)
-    else:
-        return eigensplit
 
 def update_svd(L_sqrt, row_index_complement):
     """
@@ -166,16 +28,6 @@ def update_svd(L_sqrt, row_index_complement):
     ordered_ingroup_rows = [L_sqrt[i] for i in sorted(row_index_selection)]
     ordered_outgroup_rows = [L_sqrt[i] for i in sorted(row_index_complement)]
     return np.vstack(ordered_ingroup_rows + [sum(ordered_outgroup_rows)])
-
-
-def sqrt_laplacian_to_fiedler(L_sqrt):
-    """
-    @param L_sqrt: the matrix square root of a Laplacian
-    @return: the Fiedler vector of a related graph
-    """
-    U, S_array, VT = np.linalg.svd(L_sqrt, full_matrices=0)
-    # we are interested in a column vector of U
-    return U.T[-2]
 
 
 class TreeData:
@@ -241,7 +93,7 @@ def build_tree(L_sqrt, ordered_labels, tree_data):
     if n > 3:
         try:
             index_split = tree_data.split_function(L_sqrt)
-        except DegenerateSplitException, e:
+        except splitbuilder.DegenerateSplitException, e:
             pass
     # if no informative split was found then create a degenerate tree
     if not index_split:
@@ -281,44 +133,6 @@ def build_tree(L_sqrt, ordered_labels, tree_data):
     left_root.add_child(right_root)
     return left_root
 
-def validate_data(data):
-    """
-    Each row of the input data is a gene.
-    Each column of the input data is a genetic line of flies or something.
-    @param data: row major list of lists of floating point numbers
-    """
-    if len(data) < 3:
-        raise ValueError('too few rows of data')
-    first_row_length = len(data[0])
-    if first_row_length < 3:
-        raise ValueError('too few columns of data')
-    for row in data:
-        if len(row) != first_row_length:
-            raise ValueError('each row of data should have the same number of columns')
-
-def get_data(filename):
-    fin = open(filename)
-    lines = fin.readlines()
-    fin.close()
-    arr = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        row = [float(x) for x in line.split()]
-        arr.append(row)
-    validate_data(arr)
-    return np.array(arr)
-
-
-"""
-    def test_cool(self):
-        X = get_data('cool.txt')
-        L_sqrt = khorr.data_to_laplacian_sqrt(X)
-        splits = get_splits(L_sqrt, split_using_svd, update_using_laplacian)
-        #for s in splits:
-            #print split_to_string(s)
-"""
 
 class TestMe(unittest.TestCase):
 
@@ -339,9 +153,9 @@ class TestMe(unittest.TestCase):
         self.assertAllClose(observed, expected)
 
     def test_kh_dataset(self):
-        X = get_data('kh-dataset.txt')
+        X = splitbuilder.get_data('kh-dataset.txt')
         L_sqrt = khorr.data_to_laplacian_sqrt(X)
-        tree_data = TreeData(split_svd, update_svd)
+        tree_data = TreeData(splitbuilder.split_svd, update_svd)
         root = build_tree(L_sqrt, range(len(X)), tree_data)
         print
         print root.get_newick_string()
