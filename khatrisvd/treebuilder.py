@@ -157,6 +157,19 @@ class TestMe(unittest.TestCase):
         L_sqrt = khorr.data_to_laplacian_sqrt(X)
         tree_data = TreeData(splitbuilder.split_svd, update_svd)
         root = build_tree(L_sqrt, range(len(X)), tree_data)
+        #print
+        #print root.get_newick_string()
+        #print
+
+    def test_fivetimes_dataset(self):
+        X = splitbuilder.get_data('fivetimes2.txt')
+        X = X.T
+        L_sqrt = khorr.data_to_laplacian_sqrt(X)
+        tree_data = TreeData(splitbuilder.split_svd, update_svd)
+        root = build_tree(L_sqrt, range(len(X)), tree_data)
+        for node in root.preorder():
+            if node.has_label():
+                node.label += 1
         print
         print root.get_newick_string()
         print

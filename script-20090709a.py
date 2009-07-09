@@ -56,6 +56,22 @@ def doing_it_wrong_b():
     expand_internal_nodes(root)
     print root.get_newick_string()
 
+def doing_it_wrong_c():
+    root = mtree.Node()
+    root.label = 0
+    child = mtree.Node()
+    child.label = 1
+    root.add_child(child)
+    nodes = [root, child]
+    for i in range(1, 32):
+        for j in (2*i, 2*i+1):
+            child = mtree.Node()
+            child.label = j
+            nodes[i].add_child(child)
+            nodes.append(child)
+    expand_internal_nodes(root)
+    print root.get_newick_string()
+
 def main():
     root = mtree.Node()
     root.label = 0
@@ -69,6 +85,12 @@ def main():
             child.label = j
             nodes[i].add_child(child)
             nodes.append(child)
+    # add the last node
+    child = mtree.Node()
+    child.label = 64
+    nodes[32].add_child(child)
+    nodes.append(child)
+    # expand internal nodes
     expand_internal_nodes(root)
     print root.get_newick_string()
 
