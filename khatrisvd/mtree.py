@@ -25,6 +25,18 @@ class Node:
     def has_label(self):
         return self.label is not None
 
+    def ordered_labels(self):
+        """
+        @return: a list of vertices in an order suitable for a dendrogram
+        """
+        if self.has_label():
+            return [self.label]
+        else:
+            arr = []
+            for child in self.children:
+                arr.extend(child.ordered_labels())
+            return arr
+
     def preorder(self):
         """
         @return: a list of vertices in a partial order
@@ -199,6 +211,12 @@ class TestMe(unittest.TestCase):
         self.assertEqual(expected, observed)
         # trying to remove a degree three node fails
         self.assertRaises(ValueError, root.remove)
+
+    def test_ordered_labels(self):
+        root = create_tree([[0, [1, 2]], 3, [4, 5, 6]])
+        observed = root.ordered_labels()
+        expected = range(7)
+        self.assertEqual(expected, observed)
 
 
 if __name__ == '__main__':
