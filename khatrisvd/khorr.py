@@ -10,6 +10,8 @@ it is represented as a two dimensional numpy array
 unless otherwise specified.
 """
 
+import logging
+
 import numpy as np
 
 import unittest
@@ -145,9 +147,12 @@ def standardized_to_augmented_C(Z):
     @param Z: a standardized data matrix
     @return: an augmented matrix
     """
+    logging.debug('standardized_to_augmented_C: doing a singular value decomposition')
     U, S_array, VT = np.linalg.svd(Z, full_matrices=0)
     Z_reduced = np.array([row[:-1] for row in U*S_array])
-    return reduced_khatri_rao_row_square(Z_reduced)
+    logging.debug('standardized_to_augmented_C: creating the khatri rao row square')
+    W = reduced_khatri_rao_row_square(Z_reduced)
+    return W
 
 def is_small(x, eps=1e-12):
     return abs(x) < eps
@@ -157,9 +162,13 @@ def data_to_laplacian_sqrt(X):
     @param X: a data matrix
     @return: a matrix whose product with its transpose is like a Laplacian
     """
+    logging.debug('data_to_laplacian_sqrt: creating the standardized matrix')
     Z = get_standardized_matrix(X)
+    logging.debug('data_to_laplacian_sqrt: creating the augmented matrix')
     Q = standardized_to_augmented_C(Z)
+    logging.debug('data_to_laplacian_sqrt: creating the column centered matrix')
     W = get_column_centered_matrix(Q)
+    logging.debug('data_to_laplacian_sqrt: doing a singular value decomposition')
     U, S_array, VT = np.linalg.svd(W, full_matrices=0)
     S_pinv_array = np.array([0 if is_small(x) else 1/x for x in S_array])
     L_sqrt = U*S_pinv_array
