@@ -6,14 +6,15 @@ During testing it dumps an image in the current directory;
 this might be a problem.
 """
 
-import dendro
+import colorsys
+import unittest
+import random
 
 import Image
 import numpy as np
 
-import colorsys
-import unittest
-import random
+import dendro
+import mtree
 
 def get_inverse_permutation(order):
     """
@@ -50,6 +51,55 @@ def get_permuted_rows_and_columns(M, ordered_indices):
     """
     return get_permuted_rows(get_permuted_columns(M, ordered_indices), ordered_indices)
 
+def get_heatmap_image(M):
+    """
+    The input is meant to be an entrywise squared correlation matrix.
+    The indices are expected to have been reordered already.
+    @param M: a matrix with entries between zero and one
+    @return: a PIL image
+    """
+    n = len(M)
+    # initialize the color blue
+    blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
+    saturation = blue_saturation
+    # create the image using M as the saturation value
+    im = Image.new('RGB', (n, n), 'red')
+    for i in range(n):
+        for j in range(n):
+            saturation = M[i][j]
+            colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
+            pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
+            im.putpixel((i, j), pil_rgb)
+    return im
+
+def get_block_heatmap_image(M, blockwidth=3):
+    """
+    Use blocks larger than pixels.
+    The input is meant to be an entrywise squared correlation matrix.
+    The indices are expected to have been reordered already.
+    @param M: a matrix with entries between zero and one
+    @param blockwidth: the width of one side of a block; defaults to a single pixel
+    @return: a PIL image
+    """
+    #TODO use real PIL drawing functions to draw the blocks
+    n = len(M)
+    # initialize the color blue
+    blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
+    saturation = blue_saturation
+    # create the image using M as the saturation value
+    im = Image.new('RGB', (n*blockwidth, n*blockwidth), 'red')
+    for i in range(n):
+        for j in range(n):
+            saturation = M[i][j]
+            colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
+            pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
+            for u in range(blockwidth):
+                for v in range(blockwidth):
+                    x = i*blockwidth + u
+                    y = j*blockwidth + v
+                    im.putpixel((x, y), pil_rgb)
+    return im
+
 def get_heatmap(M, filename):
     """
     The input is meant to be an entrywise squared correlation matrix.
@@ -57,41 +107,32 @@ def get_heatmap(M, filename):
     @param M: a matrix with entries between zero and one
     @param filename: where to put the image
     """
-    n = len(M)
-    # initialize the color blue
-    blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
-    saturation = blue_saturation
-    # create the image using M as the saturation value
-    myimage = Image.new('RGB', (n, n), 'red')
-    for i in range(n):
-        for j in range(n):
-            saturation = M[i][j]
-            colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
-            pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
-            myimage.putpixel((i, j), pil_rgb)
+    #FIXME this function is pretty useless
+    im = get_heatmap_image(M)
     fout = open(filename, 'wb')
-    myimage.save(fout)
+    im.save(fout)
     fout.close()
 
-
-class HeatmapHelper:
+class DendrogramImager:
     """
     This is a vehicle for the dendrogram line drawing function.
+    A PIL RGB image is created.
+    This class is to bitmaps as dendro.AsciiArt is to ascii art.
     """
 
-    def __init__(self, image, dx, dy):
+    def __init__(self, root):
         """
-        @param image: a PIL image
-        @param dx: the dendrogram x offset
-        @param dy: the dendrogram y offset
+        Initialization creates the dendrogram image.
+        @param: the root of a tree
         """
-        self.image = image
-        self.dx = dx
-        self.dy = dy
-        #TODO add an option for the side where the dendrogram goes
-        self.left = True
+        breadth_gap = 2
+        height_gap = 3
+        image_height = dendro.get_dendrogram_breadth(root, breadth_gap)
+        image_width = dendro.get_dendrogram_height(root, height_gap)
+        self.im = Image.new('RGB', (image_width, image_height), 'white')
+        dendro.draw_dendrogram(root, breadth_gap, height_gap, self.on_draw_line)
 
-    def on_draw_dendrogram_line(self, line):
+    def on_draw_line(self, line):
         """
         @param line: each endpoint is a (breadth_offset, height_offset) pair
         """
@@ -99,14 +140,10 @@ class HeatmapHelper:
         ((a, b), (c, d)) = line
         if a == c:
             for height_offset in range(min(b, d), max(b, d) + 1):
-                x = self.dx + height_offset
-                y = self.dy + a
-                self.image.putpixel((x, y), (0, 0, 0))
+                self.im.putpixel((height_offset, a), (0, 0, 0))
         elif b == d:
             for breadth_offset in range(min(a, c), max(a, c) + 1):
-                x = self.dx + b
-                y = self.dy + breadth_offset
-                self.image.putpixel((x, y), (0, 0, 0))
+                self.im.putpixel((b, breadth_offset), (0, 0, 0))
 
 
 def get_heatmap_with_dendrogram(M, root, filename):
@@ -119,39 +156,20 @@ def get_heatmap_with_dendrogram(M, root, filename):
     """
     #TODO add an option for the side where the dendrogram goes
     left = True
-    #TODO draw in a way that doesn't suck
-    n = len(M)
-    # initialize the color blue
-    blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
-    saturation = blue_saturation
-    # define dendrogram parameters
-    breadth_gap = 2
-    height_gap = 3
-    dendrogram_breadth = dendro.get_dendrogram_breadth(root, breadth_gap)
-    dendrogram_height = dendro.get_dendrogram_height(root, height_gap)
-    dendrogram_dx = n*3 + 1
-    dendrogram_dy = 1
-    # define the width of the image
-    image_width = n*3 + dendrogram_height + 2
-    image_height = n*3
-    # create the image using M as the saturation value
-    myimage = Image.new('RGB', (image_width, image_height), 'white')
     # draw the dendrogram
-    helper = HeatmapHelper(myimage, dendrogram_dx, dendrogram_dy)
-    dendro.draw_dendrogram(root, breadth_gap, height_gap, helper.on_draw_dendrogram_line)
+    imager = DendrogramImager(root)
+    dendrogram_image = imager.im
     # draw the heatmap
-    for i in range(n):
-        for j in range(n):
-            saturation = M[i][j]
-            colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
-            pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
-            for u in range(3):
-                for v in range(3):
-                    x = i*3 + u
-                    y = j*3 + v
-                    myimage.putpixel((x, y), pil_rgb)
+    heatmap_image = get_block_heatmap_image(M)
+    # paste the heatmap and the dendrogram into the same image
+    n = len(M)
+    image_width = n*3 + dendrogram_image.size[0] + 2
+    image_height = n*3
+    composite_image = Image.new('RGB', (image_width, image_height), 'white')
+    composite_image.paste(heatmap_image, (0, 0))
+    composite_image.paste(dendrogram_image, (n*3 + 1, 1))
     fout = open(filename, 'wb')
-    myimage.save(fout)
+    composite_image.save(fout)
     fout.close()
 
 
@@ -197,6 +215,21 @@ class TestMe(unittest.TestCase):
         observed = get_inverse_permutation([2, 0, 1, 3])
         expected = [1, 2, 0, 3]
         self.assertEqual(expected, observed)
+
+    def test_dendrogram_imager(self):
+        filename = 'dendrogram-test.png'
+        root = mtree.create_tree([[0, [1, 2]], 3, [4, 5, 6]])
+        imager = DendrogramImager(root)
+        fout = open(filename, 'wb')
+        imager.im.save(fout)
+        fout.close()
+
+    def test_heatmap_with_dendrogram(self):
+        filename = 'heatmap-with-dendrogram-test.png'
+        root = mtree.create_tree([[0, [1, 2]], 3, [4, 5, 6]])
+        M = np.random.random((7, 7))
+        RoR = np.corrcoef(M)**2
+        get_heatmap_with_dendrogram(RoR, root, filename)
 
 
 if __name__ == '__main__':
