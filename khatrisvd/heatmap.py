@@ -15,6 +15,7 @@ import numpy as np
 
 import dendro
 import mtree
+import gradient
 
 def get_inverse_permutation(order):
     """

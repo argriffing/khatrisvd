@@ -35,6 +35,15 @@ def data_file_to_matrix(input_data_path):
     # skip the first element of each line
     rows = [row[1:] for row in rows]
     # convert elements to floats
+    X = []
+    for row_index, row in enumerate(rows):
+        try:
+            float_row = [float(x) for x in row]
+        except ValueError, e:
+            message_lines = [
+                    'invalid number on row %d' % (row_index+1),
+                    str(e)]
+            raise ValueError('\n'.join(message_lines))
     rows = [[float(x) for x in row] for row in rows]
     # return the matrix
     return np.array(rows)
@@ -58,7 +67,9 @@ def analyze(input_data_path, output_image_path):
 
 def main():
     for filename in os.listdir(g_input_directory):
-        if filename.endswith('csv'):
+        #if filename.endswith('csv'):
+        #if filename.startswith('LGE'):
+        if filename.startswith('LGE') and filename.endswith('60.csv'):
             print filename
             input_data_path = os.path.join(g_input_directory, filename)
             output_image_path = os.path.join(g_output_directory, filename + '.png')
