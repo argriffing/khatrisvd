@@ -1,5 +1,5 @@
 """
-This is a gradient for the heatmap.
+This has a gradient for the heatmap.
 """
 
 g_gradient = [
@@ -67,3 +67,9 @@ g_gradient = [
 		[0.625,0,0],
 		[0.5625,0,0],
 		[0.5,0,0]]
+
+def correlation_to_rgb(r):
+    """
+    @param r: a number between 0 and 1
+    """
+    g_gradient
