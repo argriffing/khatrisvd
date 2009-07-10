@@ -25,17 +25,31 @@ class Node:
     def has_label(self):
         return self.label is not None
 
-    def ordered_labels(self):
+    def height(self):
+        """
+        @return: the height of the tree
+        """
+        if not self.children:
+            return 0
+        return max(child.height() for child in self.children) + 1
+
+    def ordered_tips(self):
         """
         @return: a list of vertices in an order suitable for a dendrogram
         """
-        if self.has_label():
-            return [self.label]
+        if not self.children:
+            return [self]
         else:
             arr = []
             for child in self.children:
-                arr.extend(child.ordered_labels())
+                arr.extend(child.ordered_tips())
             return arr
+
+    def ordered_labels(self):
+        """
+        @return: a list of labels in an order suitable for a dendrogram
+        """
+        return [node.label for node in self.ordered_tips()]
 
     def preorder(self):
         """
