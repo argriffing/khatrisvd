@@ -6,6 +6,8 @@ During testing it dumps an image in the current directory;
 this might be a problem.
 """
 
+import dendro
+
 import Image
 import numpy as np
 
@@ -59,8 +61,6 @@ def get_heatmap(M, filename):
     # initialize the color blue
     blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
     saturation = blue_saturation
-    colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
-    pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
     # create the image using M as the saturation value
     myimage = Image.new('RGB', (n, n), 'red')
     for i in range(n):
@@ -69,6 +69,87 @@ def get_heatmap(M, filename):
             colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
             pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
             myimage.putpixel((i, j), pil_rgb)
+    fout = open(filename, 'wb')
+    myimage.save(fout)
+    fout.close()
+
+
+class HeatmapHelper:
+    """
+    This is a vehicle for the dendrogram line drawing function.
+    """
+
+    def __init__(self, image, dx, dy):
+        """
+        @param image: a PIL image
+        @param dx: the dendrogram x offset
+        @param dy: the dendrogram y offset
+        """
+        self.image = image
+        self.dx = dx
+        self.dy = dy
+        #TODO add an option for the side where the dendrogram goes
+        self.left = True
+
+    def on_draw_dendrogram_line(self, line):
+        """
+        @param line: each endpoint is a (breadth_offset, height_offset) pair
+        """
+        #TODO draw a line using PIL instead of putting the pixels one by one
+        ((a, b), (c, d)) = line
+        if a == c:
+            for height_offset in range(min(b, d), max(b, d) + 1):
+                x = self.dx + height_offset
+                y = self.dy + a
+                self.image.putpixel((x, y), (0, 0, 0))
+        elif b == d:
+            for breadth_offset in range(min(a, c), max(a, c) + 1):
+                x = self.dx + b
+                y = self.dy + breadth_offset
+                self.image.putpixel((x, y), (0, 0, 0))
+
+
+def get_heatmap_with_dendrogram(M, root, filename):
+    """
+    The input matrix is meant to be an entrywise squared correlation matrix.
+    The indices of M should have been ordered conformantly with the dendrogram order.
+    @param M: a matrix with entries between zero and one
+    @param root: the root of the tree used to create the dendrogram
+    @param filename: where to put the image
+    """
+    #TODO add an option for the side where the dendrogram goes
+    left = True
+    #TODO draw in a way that doesn't suck
+    n = len(M)
+    # initialize the color blue
+    blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
+    saturation = blue_saturation
+    # define dendrogram parameters
+    breadth_gap = 2
+    height_gap = 3
+    dendrogram_breadth = dendro.get_dendrogram_breadth(root, breadth_gap)
+    dendrogram_height = dendro.get_dendrogram_height(root, height_gap)
+    dendrogram_dx = n*3 + 1
+    dendrogram_dy = 1
+    # define the width of the image
+    image_width = n*3 + dendrogram_height + 2
+    image_height = n*3
+    # create the image using M as the saturation value
+    myimage = Image.new('RGB', (image_width, image_height), 'white')
+    # draw the dendrogram
+    helper = HeatmapHelper(myimage, dendrogram_dx, dendrogram_dy)
+    dendro.draw_dendrogram(root, breadth_gap, height_gap, helper.on_draw_dendrogram_line)
+    # draw the heatmap
+    for i in range(n):
+        for j in range(n):
+            saturation = M[i][j]
+            colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
+            pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
+            for u in range(3):
+                for v in range(3):
+                    x = i*3 + u
+                    y = j*3 + v
+                    myimage.putpixel((x, y), pil_rgb)
     fout = open(filename, 'wb')
     myimage.save(fout)
     fout.close()

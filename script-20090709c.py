@@ -54,15 +54,16 @@ def analyze(input_data_path, output_image_path):
     print 'permute the elementwise squared correlation matrix according to the ordering'
     M = heatmap.get_permuted_rows_and_columns(RoR, ordered_indices)
     print 'create the heatmap'
-    heatmap.get_heatmap(M, output_image_path)
+    heatmap.get_heatmap_with_dendrogram(M, root, output_image_path)
 
 def main():
     for filename in os.listdir(g_input_directory):
-        print filename
-        input_data_path = os.path.join(g_input_directory, filename)
-        output_image_path = os.path.join(g_output_directory, filename + '.png')
-        analyze(input_data_path, output_image_path)
-        print
+        if filename.endswith('csv'):
+            print filename
+            input_data_path = os.path.join(g_input_directory, filename)
+            output_image_path = os.path.join(g_output_directory, filename + '.png')
+            analyze(input_data_path, output_image_path)
+            print
 
 if __name__ == '__main__':
     main()
