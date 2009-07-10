@@ -52,64 +52,55 @@ def get_permuted_rows_and_columns(M, ordered_indices):
     """
     return get_permuted_rows(get_permuted_columns(M, ordered_indices), ordered_indices)
 
-def get_heatmap_image(M):
+def get_heatmap_image(M, entry_to_rgb):
     """
     The input is meant to be an entrywise squared correlation matrix.
     The indices are expected to have been reordered already.
     @param M: a matrix with entries between zero and one
+    @param entry_to_rgb: a function that returns an RGB color given an entry of M
     @return: a PIL image
     """
     n = len(M)
-    # initialize the color blue
-    blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
-    saturation = blue_saturation
-    # create the image using M as the saturation value
     im = Image.new('RGB', (n, n), 'red')
     for i in range(n):
         for j in range(n):
-            saturation = M[i][j]
-            colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
-            pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
-            im.putpixel((i, j), pil_rgb)
+            rgb = entry_to_rgb(M[i][j])
+            im.putpixel((i, j), rgb)
     return im
 
-def get_block_heatmap_image(M, blockwidth=3):
+def get_block_heatmap_image(M, entry_to_rgb, blockwidth=3):
     """
     Use blocks larger than pixels.
     The input is meant to be an entrywise squared correlation matrix.
     The indices are expected to have been reordered already.
     @param M: a matrix with entries between zero and one
     @param blockwidth: the width of one side of a block; defaults to a single pixel
+    @param entry_to_rgb: a function that returns an RGB color given an entry of M
     @return: a PIL image
     """
     #TODO use real PIL drawing functions to draw the blocks
     n = len(M)
-    # initialize the color blue
-    blue_hue, blue_saturation, value = colorsys.rgb_to_hsv(0, 0, 1.0)
-    saturation = blue_saturation
-    # create the image using M as the saturation value
     im = Image.new('RGB', (n*blockwidth, n*blockwidth), 'red')
     for i in range(n):
         for j in range(n):
-            saturation = M[i][j]
-            colorsys_rgb = colorsys.hsv_to_rgb(blue_hue, saturation, value)
-            pil_rgb = tuple(int(x*255) for x in colorsys_rgb)
+            rgb = entry_to_rgb(M[i][j])
             for u in range(blockwidth):
                 for v in range(blockwidth):
                     x = i*blockwidth + u
                     y = j*blockwidth + v
-                    im.putpixel((x, y), pil_rgb)
+                    im.putpixel((x, y), rgb)
     return im
 
-def get_heatmap(M, filename):
+def get_heatmap(RoR, filename):
     """
     The input is meant to be an entrywise squared correlation matrix.
     The indices are expected to have been reordered already.
-    @param M: a matrix with entries between zero and one
+    @param RoR: a matrix with entries between zero and one
     @param filename: where to put the image
     """
     #FIXME this function is pretty useless
-    im = get_heatmap_image(M)
+    f = gradient.squared_correlation_to_rgb
+    im = get_heatmap_image(RoR, f)
     fout = open(filename, 'wb')
     im.save(fout)
     fout.close()
@@ -147,12 +138,13 @@ class DendrogramImager:
                 self.im.putpixel((b, breadth_offset), (0, 0, 0))
 
 
-def get_heatmap_with_dendrogram(M, root, filename):
+def get_heatmap_with_dendrogram(M, root, entry_to_rgb, filename):
     """
     The input matrix is meant to be an entrywise squared correlation matrix.
     The indices of M should have been ordered conformantly with the dendrogram order.
     @param M: a matrix with entries between zero and one
     @param root: the root of the tree used to create the dendrogram
+    @param entry_to_rgb: a function that returns an RGB color given an entry of M
     @param filename: where to put the image
     """
     #TODO add an option for the side where the dendrogram goes
@@ -161,7 +153,7 @@ def get_heatmap_with_dendrogram(M, root, filename):
     imager = DendrogramImager(root)
     dendrogram_image = imager.im
     # draw the heatmap
-    heatmap_image = get_block_heatmap_image(M)
+    heatmap_image = get_block_heatmap_image(M, entry_to_rgb)
     # paste the heatmap and the dendrogram into the same image
     n = len(M)
     image_width = n*3 + dendrogram_image.size[0] + 2
@@ -226,11 +218,18 @@ class TestMe(unittest.TestCase):
         fout.close()
 
     def test_heatmap_with_dendrogram(self):
-        filename = 'heatmap-with-dendrogram-test.png'
         root = mtree.create_tree([[0, [1, 2]], 3, [4, 5, 6]])
         M = np.random.random((7, 7))
-        RoR = np.corrcoef(M)**2
-        get_heatmap_with_dendrogram(RoR, root, filename)
+        R = np.corrcoef(M)
+        # draw the correlation heatmap
+        filename = 'r-test.png'
+        f = gradient.correlation_to_rgb
+        get_heatmap_with_dendrogram(R, root, f, filename)
+        # draw the squared correlation heatmap
+        filename = 'rr-test.png'
+        RoR = R*R
+        f = gradient.squared_correlation_to_rgb
+        get_heatmap_with_dendrogram(RoR, root, f, filename)
 
 
 if __name__ == '__main__':
