@@ -84,7 +84,6 @@ def build_tree(L_sqrt, ordered_labels, tree_data):
     @param tree_data: state whose scope is the construction of the tree
     @return: an mtree rooted at a degree 2 vertex unless the input matrix has 3 rows
     """
-    #TODO make this function iterative instead of recursive
     n = len(L_sqrt)
     if n < 3:
         raise ValueError('expected the input matrix to have at least three rows')

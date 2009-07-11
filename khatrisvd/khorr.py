@@ -110,6 +110,30 @@ def sum_last_columns(M, k):
     """
     return sum_last_rows(M.T, k).T
 
+def sum_arbitrary_rows(M, row_indices_to_sum):
+    """
+    Get the matrix that is M with some rows summed and moved to the end.
+    The last row in the output matrix will be equal to the sum of the specified rows.
+    The order of the rows that are not summed will be stable in the resulting matrix.
+    @param M: a matrix
+    @param row_indices_to_sum: the set of indices of rows to sum
+    """
+    n = len(M)
+    row_indices_to_keep = set(range(n)) - set(row_indices_to_sum)
+    row_sum = sum(M[i] for i in row_indices_to_sum)
+    new_rows = [M[i] for i in sorted(row_indices_to_keep)] + [row_sum]
+    return np.vstack(new_rows)
+
+def sum_arbitrary_columns(M, column_indices_to_sum):
+    """
+    Get the matrix that is M with some columns summed and moved to the end.
+    The last column in the output matrix will be equal to the sum of the specified columns.
+    The order of the columns that are not summed will be stable in the resulting matrix.
+    @param M: a matrix
+    @param column_indices_to_sum: the set of indices of columns to sum
+    """
+    return sum_arbitrary_rows(M.T, column_indices_to_sum).T
+
 def standardized_to_augmented_A(Z):
     """
     This is the first of three similar functions.
@@ -188,6 +212,17 @@ class TestMe(unittest.TestCase):
         @param msg: shown when the assertion fails
         """
         self.assertTrue(np.allclose(A, B), msg=msg)
+
+    def test_sum_arbitrary_rows(self):
+        M = np.array([[1,2,3],[4,5,6],[7,8,9]])
+        # first summation
+        expected = np.array([[1,2,3],[11,13,15]])
+        observed = sum_arbitrary_rows(M, (1, 2))
+        self.assertAllClose(observed, expected)
+        # second summation
+        expected = np.array([[7,8,9],[5,7,9]])
+        observed = sum_arbitrary_rows(M, (0, 1))
+        self.assertAllClose(observed, expected)
 
     def test_hadamard_square(self):
         M = np.array([[1,2],[3,4]])
@@ -272,6 +307,43 @@ class TestMe(unittest.TestCase):
         L_summed_reconstructed = np.dot(L_summed_sqrt, L_summed_sqrt.T)
         self.assertAllClose(L_summed_reconstructed, L_summed)
 
+    def test_extended_laplacian_shortcut(self):
+        """
+        Demo commutativity of SVD and summation under certain conditions.
+        """
+        p = 100
+        n = 7
+        k = 3
+        # define sets of arbitrary rows
+        first_rows = set((3, 5, 9))
+        second_rows = set((12, 13, 2))
+        # make a random data matrix
+        X = np.random.random((p, n))
+        # get a matrix that we are treating like the laplacian
+        HDH = get_doubly_centered_matrix(np.corrcoef(X) ** 2)
+        L = np.linalg.pinv(HDH)
+        L_summed = sum_arbitrary_rows(sum_arbitrary_columns(L, first_rows), first_rows)
+        L_summed = sum_arbitrary_rows(sum_arbitrary_columns(L_summed, second_rows), second_rows)
+        # get the square root of the laplacian without using pxp operations
+        A = data_to_laplacian_sqrt(X)
+        # sum rows of the summed laplacian sqrt
+        B = sum_arbitrary_rows(A, first_rows)
+        # get the first criterion matrix
+        U, S_array, VT = np.linalg.svd(B, full_matrices=0)
+        QB = U*S_array
+        # sum rows of the first criterion matrix
+        QB_summed = sum_arbitrary_rows(QB, second_rows)
+        # sum more rows of the summed laplacian sqrt
+        C = sum_arbitrary_rows(B, second_rows)
+        # get the second criterion matrix directly from the summed laplacian sqrt
+        U, S_array, VT = np.linalg.svd(C, full_matrices=0)
+        QC_direct = U*S_array
+        # get the second criterion matrix from the summed first criterion matrix
+        U, S_array, VT = np.linalg.svd(QB_summed, full_matrices=0)
+        QC_indirect = U*S_array
+        # check the equivalence
+        self.assertAllClose(np.dot(QC_direct, QC_direct.T), L_summed)
+        self.assertAllClose(np.dot(QC_indirect, QC_indirect.T), L_summed)
 
 if __name__ == '__main__':
     unittest.main()
