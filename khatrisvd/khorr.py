@@ -168,6 +168,9 @@ def data_to_laplacian_sqrt(X):
     Q = standardized_to_augmented_C(Z)
     logging.debug('data_to_laplacian_sqrt: creating the column centered matrix')
     W = get_column_centered_matrix(Q)
+    logging.debug('data_to_laplacian_sqrt: manually cleaning up old matrices')
+    del Z
+    del Q
     logging.debug('data_to_laplacian_sqrt: doing a singular value decomposition')
     U, S_array, VT = np.linalg.svd(W, full_matrices=0)
     S_pinv_array = np.array([0 if is_small(x) else 1/x for x in S_array])

@@ -8,7 +8,7 @@ svdtimer.py
 svdtimer.m
 
 Usage:
-python svdtimer.py
+python svdtimer.py 450 10000
 matlab -nojvm -nodisplay -nodesktop -nosplash -r svdtimer
 
 
