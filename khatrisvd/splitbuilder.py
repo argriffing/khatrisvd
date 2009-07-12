@@ -6,6 +6,7 @@ the splitting function will repeatedly split a rectangular matrix.
 """
 
 import khorr
+import util
 
 import numpy as np
 

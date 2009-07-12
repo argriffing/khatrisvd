@@ -4,15 +4,19 @@ This is a junk script.
 Go back and analyze all of Eric's files that he did with MMC.
 """
 
-import numpy as np
 import random
 import os
+import logging
+
+import numpy as np
 
 from khatrisvd import treebuilder
 from khatrisvd import splitbuilder
 from khatrisvd import khorr
 from khatrisvd import heatmap
 from khatrisvd import gradient
+
+logging.basicConfig(level=logging.DEBUG)
 
 g_output_directory = 'analysis-of-mmc-data-files'
 g_input_directory = 'mmc-data-files'
@@ -50,30 +54,29 @@ def data_file_to_matrix(input_data_path):
     return np.array(rows)
 
 def analyze(input_data_path, output_image_path):
-    print 'read the matrix'
+    logging.debug('read the matrix')
     X = data_file_to_matrix(input_data_path)
-    print 'get the initial sqrt of laplacian'
-    L_sqrt = khorr.data_to_laplacian_sqrt(X)
-    print 'create the tree'
-    tree_data = treebuilder.TreeData(splitbuilder.split_svd, treebuilder.update_svd)
-    root = treebuilder.build_tree(L_sqrt, range(len(X)), tree_data)
-    print 'create the elementwise squared correlation matrix'
-    R = np.corrcoef(X)
-    #RoR = R*R
-    print 'extract ordered indices from the tree'
+    logging.debug('get the initial sqrt of laplacian')
+    U, S = khorr.data_to_reduced_laplacian_sqrt(X)
+    logging.debug('create the tree')
+    tree_data = treebuilder.TreeData()
+    root = treebuilder.build_tree(U, S, range(len(U)), tree_data)
+    logging.debug('extract ordered indices from the tree')
     ordered_indices = root.ordered_labels()
-    print 'permute the elementwise squared correlation matrix according to the ordering'
-    #M = heatmap.get_permuted_rows_and_columns(RoR, ordered_indices)
+    logging.debug('create the elementwise squared correlation matrix')
+    R = np.corrcoef(X)
+    logging.debug('permute the elementwise squared correlation matrix according to the ordering')
     M = heatmap.get_permuted_rows_and_columns(R, ordered_indices)
-    print 'create the heatmap'
+    logging.debug('create the heatmap')
     f = gradient.correlation_to_rgb
     heatmap.get_heatmap_with_dendrogram(M, root, f, output_image_path)
 
 def main():
     for filename in os.listdir(g_input_directory):
+        if True:
         #if filename.endswith('csv') and not filename.startswith('LGE'):
         #if filename.startswith('LGE'):
-        if filename.startswith('Sta'):
+        #if filename.startswith('Sta'):
         #if filename.startswith('LGE') and filename.endswith('60.csv'):
             print filename
             input_data_path = os.path.join(g_input_directory, filename)

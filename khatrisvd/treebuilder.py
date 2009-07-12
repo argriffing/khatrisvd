@@ -15,40 +15,20 @@ import numpy as np
 import unittest
 
 
-def update_svd(L_sqrt, row_index_complement):
-    """
-    Update the matrix sqrt of Laplacian by summing rows of the removed indices.
-    The summed row goes at the end of the output matrix.
-    @param L_sqrt: the matrix square root of a Laplacian
-    @param row_index_complement: the set of row indices in the outgroup
-    @return: an updated matrix sqrt of Laplacian
-    """
-    n = len(L_sqrt)
-    row_index_selection = set(range(n)) - row_index_complement
-    ordered_ingroup_rows = [L_sqrt[i] for i in sorted(row_index_selection)]
-    ordered_outgroup_rows = [L_sqrt[i] for i in sorted(row_index_complement)]
-    return np.vstack(ordered_ingroup_rows + [sum(ordered_outgroup_rows)])
-
-
 class TreeData:
     """
     This is used to maintain state whose scope is the construction of a tree.
     Please do not move this stuff into the mtree itself.
     """
 
-    def __init__(self, split_function, update_function):
+    def __init__(self):
         """
         Initialize stuff that is meaningful per tree construction.
-        @param split_function: takes a matrix sqrt of Laplacian and returns an index split
-        @param update_function: takes a matrix sqrt of Laplacian and an index subset and returns a matrix sqrt of Laplacian
         """
         # leaves representing outgroups have negative labels
         self._next_outgroup_label = -1
         # maintain a map from labels to nodes
         self.label_to_node = {}
-        # save the split and update functions
-        self.split_function = split_function
-        self.update_function = update_function
 
     def decrement_outgroup_label(self):
         """
@@ -76,24 +56,28 @@ class TreeData:
         del self.label_to_node[node.label]
 
 
-def build_tree(L_sqrt, ordered_labels, tree_data):
+def build_tree(U_in, S_in, ordered_labels, tree_data):
     """
     Get the root of an mtree reconstructed from the transformed data.
-    @param L_sqrt: the matrix square root of a Laplacian
-    @param ordered_labels: a list of labels conformant with rows of L_sqrt
+    The input matrix U will be freed (deleted) by this function.
+    @param U_in: part of the laplacian sqrt obtained by svd
+    @param S_in: another part of the laplacian sqrt obtained by svd
+    @param ordered_labels: a list of labels conformant with rows of U
     @param tree_data: state whose scope is the construction of the tree
     @return: an mtree rooted at a degree 2 vertex unless the input matrix has 3 rows
     """
-    n = len(L_sqrt)
-    if n < 3:
+    p, n = U_in.shape
+    if p < 3:
         raise ValueError('expected the input matrix to have at least three rows')
     # look for an informative split
     index_split = None
-    if n > 3:
-        try:
-            index_split = tree_data.split_function(L_sqrt)
-        except splitbuilder.DegenerateSplitException, e:
-            pass
+    if p > 3:
+        # the signs of v match the signs of the fiedler vector
+        v = khorr.get_fiedler_vector(U_in, S_in)
+        index_split = splitbuilder.eigenvector_to_split(v)
+        # if the split is degenerate then don't use it
+        if min(len(x) for x in index_split) < 2:
+            index_split = None
     # if no informative split was found then create a degenerate tree
     if not index_split:
         root = mtree.create_tree(ordered_labels)
@@ -101,19 +85,36 @@ def build_tree(L_sqrt, ordered_labels, tree_data):
             if node.has_label():
                 tree_data.add_node(node)
         return root
+    # get the indices defined by the split
+    a, b = tuple(list(sorted(x)) for x in index_split)
+    # Create two new matrices.
+    # Be somewhat careful to not create lots of intermediate matrices
+    A = np.zeros((len(a)+1, n))
+    B = np.zeros((len(b)+1, n))
+    for i, index in enumerate(a):
+        A[i] = U_in[index] * S_in
+    for i, index in enumerate(b):
+        B[i] = U_in[index] * S_in
+    A_outgroup = np.sum(B, 0)
+    B_outgroup = np.sum(A, 0)
+    A[-1] = A_outgroup
+    B[-1] = B_outgroup
+    # delete the old matrix
+    del U_in
     # recursively construct the subtrees
     subtrees = []
-    a, b = index_split
-    for index_selection, index_complement in ((a,b),(b,a)):
+    for selection, complement, summed_L_sqrt in ((a,b,A),(b,a,B)):
         # record the outgroup label for this subtree
         outgroup_label = tree_data.decrement_outgroup_label()
         # create the ordered list of labels corresponding to leaves of the subtree
-        next_ordered_labels = [ordered_labels[i] for i in sorted(index_selection)]
+        next_ordered_labels = [ordered_labels[i] for i in selection]
         next_ordered_labels.append(outgroup_label)
-        # create the next matrix with rows conformant to the ordered labels
-        next_L_sqrt = tree_data.update_function(L_sqrt, index_complement)
-        # recursively construct the subtree
-        root = build_tree(next_L_sqrt, next_ordered_labels, tree_data)
+        # get the criterion matrix for the next iteration
+        U, S, VT = np.linalg.svd(summed_L_sqrt, full_matrices=0)
+        # delete matrices that are no longer useful
+        del summed_L_sqrt
+        # build the tree recursively
+        root = build_tree(U, S, next_ordered_labels, tree_data)
         # if the root is degree 2 then remove the root node
         if root.degree() == 2:
             root = root.remove()
@@ -144,18 +145,11 @@ class TestMe(unittest.TestCase):
         """
         self.assertTrue(np.allclose(A, B), msg=msg)
 
-    def test_update_svd(self):
-        index_set = set([1, 2])
-        M = np.array([[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]])
-        expected = np.array([[1,2,3,4],[13,14,15,16],[14,16,18,20]])
-        observed = update_svd(M, index_set)
-        self.assertAllClose(observed, expected)
-
     def test_kh_dataset(self):
         X = splitbuilder.get_data('kh-dataset.txt')
-        L_sqrt = khorr.data_to_laplacian_sqrt(X)
-        tree_data = TreeData(splitbuilder.split_svd, update_svd)
-        root = build_tree(L_sqrt, range(len(X)), tree_data)
+        U, S = khorr.data_to_laplacian_sqrt(X)
+        tree_data = TreeData()
+        root = build_tree(U, S, range(len(U)), tree_data)
         #print
         #print root.get_newick_string()
         #print
@@ -163,9 +157,9 @@ class TestMe(unittest.TestCase):
     def test_fivetimes_dataset(self):
         X = splitbuilder.get_data('fivetimes2.txt')
         X = X.T
-        L_sqrt = khorr.data_to_laplacian_sqrt(X)
-        tree_data = TreeData(splitbuilder.split_svd, update_svd)
-        root = build_tree(L_sqrt, range(len(X)), tree_data)
+        U, S = khorr.data_to_reduced_laplacian_sqrt(X)
+        tree_data = TreeData()
+        root = build_tree(U, S, range(len(U)), tree_data)
         for node in root.preorder():
             if node.has_label():
                 node.label += 1

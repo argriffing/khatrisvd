@@ -2,8 +2,10 @@
 This is a junk script.
 
 Maybe some stuff in this script can be salvaged for later use.
-Read a squared correlation cluster tree from stdin
-and write a newick tree to stdout.
+Read a data matrix from stdin.
+Write a squared correlation cluster tree newick string to stdout.
+The input matrix should have row and column headers,
+and elements should be comma separated.
 """
 
 import logging
@@ -55,11 +57,11 @@ def main():
     X = read_matrix(lines)
     # make the first split
     logging.debug('creating the sqrt laplacian matrix')
-    L_sqrt = khorr.data_to_laplacian_sqrt(X)
+    U, S = khorr.data_to_laplacian_sqrt(X)
     # make subsequent splits
     logging.debug('creating the tree')
-    tree_data = treebuilder.TreeData(splitbuilder.split_svd, treebuilder.update_svd)
-    root = treebuilder.build_tree(L_sqrt, range(len(X)), tree_data)
+    tree_data = treebuilder.TreeData()
+    root = treebuilder.build_tree(U, S, range(len(U)), tree_data)
     # write the newick tree to stdout
     logging.debug('creating the newick string')
     print root.get_newick_string()
