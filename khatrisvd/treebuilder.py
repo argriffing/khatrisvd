@@ -15,7 +15,93 @@ import khorr
 import splitbuilder
 import util
 
+def build_naive_divisive_tree_with_early_termination(X):
+    """
+    Build a tree by recursively splitting gene sets without regard to outgrouping.
+    @param X: a data matrix, preferably with more rows than columns
+    @return: the root of a tree
+    """
+    return build_naive_divisive_tree(X, early_termination=True)
+
+def build_naive_divisive_tree(X, early_termination=False):
+    """
+    Build a tree by recursively splitting gene sets without regard to outgrouping.
+    This method is less naive than building from a single split,
+    and is more naive than splitting with outgrouping.
+    @param X: a data matrix, preferably with more rows than columns
+    @param early_termination: True iff clustering stops when a split is degenerate
+    @return: the root of a tree
+    """
+    p, n = X.shape
+    Z = khorr.get_standardized_matrix(X)
+    Z = khorr.standardized_to_augmented_C(Z)
+    boxed_Z = [Z]
+    del Z
+    return _build_naive_divisive_tree_helper(boxed_Z, range(p), early_termination)
+
+def _build_naive_divisive_tree_helper(boxed_Z, ordered_labels, early_termination=False):
+    """
+    Try to be somewhat memory efficient because Z can be huge.
+    @param boxed_Z: a standardized data matrix, boxed so it can be deleted
+    @param ordered_labels: integer labels conformant to rows of Z
+    @param early_termination: True iff clustering stops when a split is degenerate
+    @return: the root of a tree
+    """
+    if len(boxed_Z) != 1:
+        raise ValueError('expected the input matrix to be boxed for deletion')
+    Z = boxed_Z[0]
+    if len(Z) != len(ordered_labels):
+        raise ValueError('the input labels are incompatible with the input matrix')
+    p = len(ordered_labels)
+    # define the root
+    root = mtree.Node()
+    # deal with a degenerate split
+    if p == 1:
+        root.label = ordered_labels[0]
+        return root
+    # get the eigenvector whose loadings will be used to split the matrix
+    Z = util.get_column_centered_matrix(Z)
+    U, S, VT = np.linalg.svd(Z, full_matrices=0)
+    v = khorr.get_dominant_vector(U, S)
+    del U
+    del VT
+    # split the matrix
+    stack = []
+    index_split = splitbuilder.eigenvector_to_split(v)
+    # if we are doing early termination and the split is degenerate then we are done
+    if early_termination and min(len(x) for x in index_split) < 2:
+        for loading, row_index in sorted((x, i) for i, x in enumerate(v)):
+            child = mtree.Node()
+            child.label = ordered_labels[row_index]
+            root.add_child(child)
+        return root
+    for selection_set in index_split:
+        selection = list(sorted(selection_set))
+        # define the next standardized (but not column centered) matrix
+        next_matrix = np.vstack(row for i, row in enumerate(Z) if i in selection_set)
+        # define the next ordered labels
+        next_ordered_labels = [ordered_labels[i] for i in selection]
+        # add to the stack
+        stack.append([next_matrix, next_ordered_labels])
+    # we no longer need the Z matrix
+    del boxed_Z[0]
+    del Z
+    # build the tree
+    while stack:
+        next_matrix, next_ordered_labels = stack.pop()
+        next_boxed_Z = [next_matrix]
+        del next_matrix
+        child = _build_naive_divisive_tree_helper(next_boxed_Z, next_ordered_labels, early_termination)
+        root.add_child(child)
+    return root
+
 def build_single_split_correlation_tree(X):
+    """
+    This is a naive method to use as a control.
+    I think it is equivalent to eigengene computations.
+    @param X: a data matrix, preferably with more rows than columns
+    @return: the root of a tree
+    """
     return build_single_split_tree(X, use_squared_correlation=False)
 
 def build_single_split_tree(X, use_squared_correlation=True):
@@ -23,8 +109,11 @@ def build_single_split_tree(X, use_squared_correlation=True):
     Get the root of an mtree reconstructed from the transformed data.
     Note that only the dominant singular vector is required.
     This may be faster to get than the entire SVD.
+    This method is naive compared to build_tree.
+    With the use_squared_correlation options disabled, it is even more naive.
     @param X: a data matrix, preferably with more rows than columns
     @param use_squared_correlation: True for squared correlation, False for correlation
+    @return: the root of a tree
     """
     # get the eigenvector whose loadings will be used to split and order the rows
     logging.debug('creating the standardized matrix')
@@ -40,15 +129,15 @@ def build_single_split_tree(X, use_squared_correlation=True):
     U, S, VT = np.linalg.svd(W, full_matrices=0)
     logging.debug('getting the dominant eigenvector')
     v = khorr.get_dominant_vector(U, S)
+    # account for values near zero, using the same criterion as in splitbuilder
+    epsilon = 1e-14
+    vprime = [0.0 if abs(x) < epsilon else x for x in v]
     # start making a tree from the eigenvector
     root = mtree.Node()
     neg_child = mtree.Node()
     pos_child = mtree.Node()
     root.add_child(neg_child)
     root.add_child(pos_child)
-    # account for values near zero, using the same criterion as in splitbuilder
-    epsilon = 1e-14
-    vprime = [0.0 if abs(x) < epsilon else x for x in v]
     for loading, row_index in sorted((x, i) for i, x in enumerate(vprime)):
         grandchild = mtree.Node()
         grandchild.label = row_index
@@ -62,6 +151,7 @@ def build_tree(X):
     """
     Get the root of an mtree reconstructed from the transformed data.
     @param X: a data matrix, preferably with more rows than columns
+    @return: the root of a tree
     """
     U, S = khorr.data_to_reduced_laplacian_sqrt(X)
     tree_data = TreeData()
