@@ -15,6 +15,20 @@ import numpy as np
 import unittest
 
 
+def build_tree(X):
+    """
+    Get the root of an mtree reconstructed from the transformed data.
+    @param X: a data matrix, preferably with more rows than columns
+    """
+    U, S = khorr.data_to_reduced_laplacian_sqrt(X)
+    tree_data = TreeData()
+    # The prancing around with U is so that it can be deleted in the called function.
+    boxed_U = [U]
+    del U
+    root = build_tree_helper(boxed_U, S, range(len(X)), tree_data)
+    return root
+
+
 class TreeData:
     """
     This is used to maintain state whose scope is the construction of a tree.
@@ -56,19 +70,26 @@ class TreeData:
         del self.label_to_node[node.label]
 
 
-def build_tree(U_in, S_in, ordered_labels, tree_data):
+def build_tree_helper(boxed_U_in, S_in, ordered_labels, tree_data):
     """
     Get the root of an mtree reconstructed from the transformed data.
     The input matrix U will be freed (deleted) by this function.
-    @param U_in: part of the laplacian sqrt obtained by svd
+    @param boxed_U_in: part of the laplacian sqrt obtained by svd
     @param S_in: another part of the laplacian sqrt obtained by svd
     @param ordered_labels: a list of labels conformant with rows of U
     @param tree_data: state whose scope is the construction of the tree
     @return: an mtree rooted at a degree 2 vertex unless the input matrix has 3 rows
     """
-    p, n = U_in.shape
-    if p < 3:
-        raise ValueError('expected the input matrix to have at least three rows')
+    # take U_in out of the box
+    if len(boxed_U_in) != 1:
+        raise ValueError('expected a 2d array as the only element of a list')
+    U_in = boxed_U_in[0]
+    shape = U_in.shape
+    if len(shape) != 2:
+        raise valueError('expected a 2d array as the only element of a list')
+    p, n = shape
+    if p < 3 or n < 3:
+        raise ValueError('expected the input matrix to have at least three rows and columns')
     # look for an informative split
     index_split = None
     if p > 3:
@@ -99,11 +120,18 @@ def build_tree(U_in, S_in, ordered_labels, tree_data):
     B_outgroup = np.sum(A, 0)
     A[-1] = A_outgroup
     B[-1] = B_outgroup
-    # delete the old matrix
+    # delete the two references to the old matrix
     del U_in
+    del boxed_U_in[0]
     # recursively construct the subtrees
     subtrees = []
-    for selection, complement, summed_L_sqrt in ((a,b,A),(b,a,B)):
+    stack = [[b,a,B], [a,b,A]]
+    # delete non-stack references to partial matrices
+    del A
+    del B
+    # process the partial matrices
+    while stack:
+        selection, complement, summed_L_sqrt = stack.pop()
         # record the outgroup label for this subtree
         outgroup_label = tree_data.decrement_outgroup_label()
         # create the ordered list of labels corresponding to leaves of the subtree
@@ -111,10 +139,13 @@ def build_tree(U_in, S_in, ordered_labels, tree_data):
         next_ordered_labels.append(outgroup_label)
         # get the criterion matrix for the next iteration
         U, S, VT = np.linalg.svd(summed_L_sqrt, full_matrices=0)
+        del VT
         # delete matrices that are no longer useful
         del summed_L_sqrt
         # build the tree recursively
-        root = build_tree(U, S, next_ordered_labels, tree_data)
+        boxed_U = [U]
+        del U
+        root = build_tree_helper(boxed_U, S, next_ordered_labels, tree_data)
         # if the root is degree 2 then remove the root node
         if root.degree() == 2:
             root = root.remove()
@@ -147,19 +178,14 @@ class TestMe(unittest.TestCase):
 
     def test_kh_dataset(self):
         X = splitbuilder.get_data('kh-dataset.txt')
-        U, S = khorr.data_to_laplacian_sqrt(X)
-        tree_data = TreeData()
-        root = build_tree(U, S, range(len(U)), tree_data)
+        root = build_tree(X)
         #print
         #print root.get_newick_string()
         #print
 
     def test_fivetimes_dataset(self):
         X = splitbuilder.get_data('fivetimes2.txt')
-        X = X.T
-        U, S = khorr.data_to_reduced_laplacian_sqrt(X)
-        tree_data = TreeData()
-        root = build_tree(U, S, range(len(U)), tree_data)
+        root = build_tree(X.T)
         for node in root.preorder():
             if node.has_label():
                 node.label += 1

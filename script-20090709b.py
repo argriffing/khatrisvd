@@ -24,9 +24,7 @@ def main():
     random.shuffle(permutation)
     X = heatmap.get_permuted_rows(X, permutation)
 
-    U, S = khorr.data_to_reduced_laplacian_sqrt(X)
-    tree_data = treebuilder.TreeData()
-    root = treebuilder.build_tree(U, S, range(len(U)), tree_data)
+    root = treebuilder.build_tree(X)
     # show the unordered heatmap
     filename = 'unordered.png'
     RoR = np.corrcoef(X)**2

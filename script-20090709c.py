@@ -56,11 +56,8 @@ def data_file_to_matrix(input_data_path):
 def analyze(input_data_path, output_image_path):
     logging.debug('read the matrix')
     X = data_file_to_matrix(input_data_path)
-    logging.debug('get the initial sqrt of laplacian')
-    U, S = khorr.data_to_reduced_laplacian_sqrt(X)
-    logging.debug('create the tree')
-    tree_data = treebuilder.TreeData()
-    root = treebuilder.build_tree(U, S, range(len(U)), tree_data)
+    logging.debug('build the tree')
+    root = treebuilder.build_tree(X)
     logging.debug('extract ordered indices from the tree')
     ordered_indices = root.ordered_labels()
     logging.debug('create the elementwise squared correlation matrix')

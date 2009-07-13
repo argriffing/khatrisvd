@@ -55,14 +55,8 @@ def main():
     lines = sys.stdin.readlines()
     logging.debug('converting input lines to data matrix')
     X = read_matrix(lines)
-    # make the first split
-    logging.debug('creating the sqrt laplacian matrix')
-    U, S = khorr.data_to_laplacian_sqrt(X)
-    # make subsequent splits
     logging.debug('creating the tree')
-    tree_data = treebuilder.TreeData()
-    root = treebuilder.build_tree(U, S, range(len(U)), tree_data)
-    # write the newick tree to stdout
+    root = treebuilder.build_tree(X)
     logging.debug('creating the newick string')
     print root.get_newick_string()
 
