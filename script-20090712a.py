@@ -1,19 +1,14 @@
 """
-This is a junk script.
-
-Maybe some stuff in this script can be salvaged for later use.
-Read a data matrix from stdin.
-Write a squared correlation cluster tree newick string to stdout.
-The input matrix should have row and column headers,
-and elements should be comma separated.
+This is for testing changes to the reduced khatri rao squaring function.
 """
 
 import logging
 import sys
+import time
 
 import numpy as np
 
-from khatrisvd import treebuilder
+from khatrisvd import khorr
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -47,15 +42,21 @@ def read_matrix(lines):
     return np.array(rows)
 
 def main():
-    # read the data matrix from stdin
+    start_time = time.time()
+    filename = sys.argv[1]
     logging.debug('reading input lines')
-    lines = sys.stdin.readlines()
+    fin = open(filename)
+    lines = fin.readlines()
+    fin.close()
     logging.debug('converting input lines to data matrix')
     X = read_matrix(lines)
-    logging.debug('creating the tree')
-    root = treebuilder.build_tree(X)
-    logging.debug('creating the newick string')
-    print root.get_newick_string()
+    logging.debug('standardizing the data matrix')
+    Z = khorr.get_standardized_matrix(X)
+    logging.debug('augmenting the data matrix')
+    W = khorr.standardized_to_augmented_C(Z)
+    end_time = time.time()
+    print end_time - start_time
+    raw_input('kbye\n')
 
 if __name__ == '__main__':
     main()

@@ -68,16 +68,21 @@ def reduced_khatri_rao_row_square(M):
     @param M: a matrix
     @return: a matrix larger than M
     """
-    #TODO this function could use some memory and time optimization
-    augmented_rows = []
-    for row in M:
-        augmented_row = []
+    p, n = M.shape
+    sqrt2 = math.sqrt(2)
+    R_p = p
+    R_n = (n*(n+1))/2
+    R = np.zeros((R_p, R_n))
+    for row_index, row in enumerate(M):
+        index = 0
+        R_row = R[row_index]
         for i, a in enumerate(row):
-            augmented_row.append(a*a)
+            R_row[index] = a*a
+            index += 1
             for b in row[i+1:]:
-                augmented_row.append(math.sqrt(2) * a * b)
-        augmented_rows.append(np.array(augmented_row))
-    return np.vstack(augmented_rows)
+                R_row[index] = sqrt2 * a * b
+                index += 1
+    return R
 
 def get_standardized_matrix(X):
     """
