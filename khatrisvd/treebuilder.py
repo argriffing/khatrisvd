@@ -9,6 +9,7 @@ the splitting function will repeatedly split a rectangular matrix.
 import mtree
 import khorr
 import splitbuilder
+import util
 
 import numpy as np
 
@@ -177,15 +178,19 @@ class TestMe(unittest.TestCase):
         self.assertTrue(np.allclose(A, B), msg=msg)
 
     def test_kh_dataset(self):
-        X = splitbuilder.get_data('kh-dataset.txt')
+        X = util.file_to_whitespace_separated_matrix('kh-dataset.txt')
         root = build_tree(X)
         #print
         #print root.get_newick_string()
         #print
 
     def test_fivetimes_dataset(self):
-        X = splitbuilder.get_data('fivetimes2.txt')
-        root = build_tree(X.T)
+        X = util.file_to_whitespace_separated_matrix('fivetimes2.txt')
+        # this file was generated transposed; oops
+        X = X.T
+        # build the tree
+        print X.shape
+        root = build_tree(X)
         for node in root.preorder():
             if node.has_label():
                 node.label += 1

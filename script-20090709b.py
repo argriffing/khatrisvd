@@ -13,11 +13,12 @@ from khatrisvd import treebuilder
 from khatrisvd import splitbuilder
 from khatrisvd import khorr
 from khatrisvd import heatmap
+from khatrisvd import util
 
 logging.basicConfig(level=logging.DEBUG)
 
 def main():
-    X = splitbuilder.get_data('khatrisvd/fivetimes.txt')
+    X = util.file_to_whitespace_separated_matrix('khatrisvd/fivetimes.txt')
     n = len(X)
 
     permutation = range(n)

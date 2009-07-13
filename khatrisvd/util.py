@@ -98,6 +98,66 @@ def sum_arbitrary_rows_and_columns(M, indices_to_sum):
     """
     return sum_arbitrary_rows(sum_arbitrary_columns(M, indices_to_sum), indices_to_sum)
 
+def file_to_comma_separated_matrix(filename, has_headers=False):
+    fin = open(filename)
+    lines = fin.readlines()
+    fin.close()
+    return _parse_lines(lines, has_headers=has_headers, use_comma=True)
+
+def file_to_whitespace_separated_matrix(filename, has_headers=False):
+    fin = open(filename)
+    lines = fin.readlines()
+    fin.close()
+    return _parse_lines(lines, has_headers=has_headers, use_comma=False)
+
+def lines_to_comma_separated_matrix(lines, has_headers=False):
+    return _parse_lines(lines, has_headers=has_headers, use_comma=True)
+
+def lines_to_whitespace_separated_matrix(lines, has_headers=False):
+    return _parse_lines(lines, has_headers=has_headers, use_comma=False)
+
+def _parse_lines(lines, has_headers=False, use_comma=False):
+    """
+    Turn raw lines of input into a numpy data array.
+    Each row of data is supposed to represent a gene or a DNA tile.
+    Each column represents an individual or genetic line or experimental condition.
+    Each entry is an expression level or log ratio to a reference expression level or something.
+    Of course, this same procedure could be applied to different data types.
+    Entries, including headers, should be separated by commas or whitespace or something.
+    @param lines: raw lines of input
+    @param use_comma: True if comma separated; False if whitespace separated
+    @param has_headers: True iff rows and columns have headers
+    @return: a numpy array
+    """
+    # read the input file
+    lines = [line.strip() for line in lines]
+    # skip empty lines
+    lines = [line for line in lines if line]
+    # possibly skip the first line
+    if has_headers:
+        lines = lines[1:]
+    # get rows of elements
+    if use_comma:
+        rows = [line.split(',') for line in lines]
+    else:
+        rows = [line.split() for line in lines]
+    # possibly skip the first element of each line
+    if has_headers:
+        rows = [row[1:] for row in rows]
+    # convert elements to floats
+    X = []
+    for row_index, row in enumerate(rows):
+        try:
+            float_row = [float(x) for x in row]
+        except ValueError, e:
+            message_lines = [
+                    'invalid number on data row %d' % (row_index+1),
+                    str(e)]
+            raise ValueError('\n'.join(message_lines))
+    rows = [[float(x) for x in row] for row in rows]
+    # return the matrix
+    return np.array(rows)
+
 
 class TestMe(unittest.TestCase):
 
