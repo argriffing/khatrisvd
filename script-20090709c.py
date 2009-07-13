@@ -10,6 +10,7 @@ import logging
 
 import numpy as np
 
+from khatrisvd import util
 from khatrisvd import treebuilder
 from khatrisvd import splitbuilder
 from khatrisvd import khorr
@@ -21,43 +22,11 @@ logging.basicConfig(level=logging.DEBUG)
 g_output_directory = 'analysis-of-mmc-data-files'
 g_input_directory = 'mmc-data-files'
 
-def data_file_to_matrix(input_data_path):
-    """
-    The input file is csv with headers.
-    @param input_data_path: path to the input file
-    @return: a matrix
-    """
-    # read the input file
-    fin = open(input_data_path)
-    lines = [line.strip() for line in fin.readlines()]
-    fin.close()
-    # skip empty lines
-    lines = [line for line in lines if line]
-    # skip the first line
-    lines = lines[1:]
-    # get rows of elements
-    rows = [line.split(',') for line in lines]
-    # skip the first element of each line
-    rows = [row[1:] for row in rows]
-    # convert elements to floats
-    X = []
-    for row_index, row in enumerate(rows):
-        try:
-            float_row = [float(x) for x in row]
-        except ValueError, e:
-            message_lines = [
-                    'invalid number on row %d' % (row_index+1),
-                    str(e)]
-            raise ValueError('\n'.join(message_lines))
-    rows = [[float(x) for x in row] for row in rows]
-    # return the matrix
-    return np.array(rows)
-
-def analyze(input_data_path, output_image_path):
+def analyze(input_data_path, output_image_path, tree_building_function):
     logging.debug('read the matrix')
-    X = data_file_to_matrix(input_data_path)
+    X = util.file_to_comma_separated_matrix(input_data_path, has_headers=True)
     logging.debug('build the tree')
-    root = treebuilder.build_tree(X)
+    root = tree_building_function(X)
     logging.debug('extract ordered indices from the tree')
     ordered_indices = root.ordered_labels()
     logging.debug('create the elementwise squared correlation matrix')
@@ -70,15 +39,25 @@ def analyze(input_data_path, output_image_path):
 
 def main():
     for filename in os.listdir(g_input_directory):
-        if True:
-        #if filename.endswith('csv') and not filename.startswith('LGE'):
+        #if True:
+        if filename.endswith('csv') and not filename.startswith('LGE'):
         #if filename.startswith('LGE'):
         #if filename.startswith('Sta'):
         #if filename.startswith('LGE') and filename.endswith('60.csv'):
-            print filename
+            logging.debug(filename)
             input_data_path = os.path.join(g_input_directory, filename)
+            # do the full analysis
             output_image_path = os.path.join(g_output_directory, filename + '.png')
-            analyze(input_data_path, output_image_path)
+            logging.debug('build the outgrouped tree')
+            analyze(input_data_path, output_image_path, treebuilder.build_tree)
+            # do a superficial analysis
+            output_image_path = os.path.join(g_output_directory, filename + '.superficial.png')
+            logging.debug('build a superficial tree from a single split')
+            analyze(input_data_path, output_image_path, treebuilder.build_single_split_tree)
+            # do a superficial analysis of correlation rather than squared correlation
+            output_image_path = os.path.join(g_output_directory, filename + '.superficial.corr.png')
+            logging.debug('build a superficial tree from a single split')
+            analyze(input_data_path, output_image_path, treebuilder.build_single_split_correlation_tree)
             print
 
 if __name__ == '__main__':

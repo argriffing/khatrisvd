@@ -5,16 +5,58 @@ Instead of repeatedly splitting a distance matrix,
 the splitting function will repeatedly split a rectangular matrix.
 """
 
+import logging
+import unittest
+
+import numpy as np
 
 import mtree
 import khorr
 import splitbuilder
 import util
 
-import numpy as np
+def build_single_split_correlation_tree(X):
+    return build_single_split_tree(X, use_squared_correlation=False)
 
-import unittest
-
+def build_single_split_tree(X, use_squared_correlation=True):
+    """
+    Get the root of an mtree reconstructed from the transformed data.
+    Note that only the dominant singular vector is required.
+    This may be faster to get than the entire SVD.
+    @param X: a data matrix, preferably with more rows than columns
+    @param use_squared_correlation: True for squared correlation, False for correlation
+    """
+    # get the eigenvector whose loadings will be used to split and order the rows
+    logging.debug('creating the standardized matrix')
+    Z = khorr.get_standardized_matrix(X)
+    if use_squared_correlation:
+        logging.debug('creating the augmented matrix')
+        Z = khorr.standardized_to_augmented_C(Z)
+    logging.debug('creating the column centered matrix')
+    W = util.get_column_centered_matrix(Z)
+    logging.debug('manually cleaning up old matrices')
+    del Z
+    logging.debug('doing a singular value decomposition')
+    U, S, VT = np.linalg.svd(W, full_matrices=0)
+    logging.debug('getting the dominant eigenvector')
+    v = khorr.get_dominant_vector(U, S)
+    # start making a tree from the eigenvector
+    root = mtree.Node()
+    neg_child = mtree.Node()
+    pos_child = mtree.Node()
+    root.add_child(neg_child)
+    root.add_child(pos_child)
+    # account for values near zero, using the same criterion as in splitbuilder
+    epsilon = 1e-14
+    vprime = [0.0 if abs(x) < epsilon else x for x in v]
+    for loading, row_index in sorted((x, i) for i, x in enumerate(vprime)):
+        grandchild = mtree.Node()
+        grandchild.label = row_index
+        if loading > 0:
+            pos_child.add_child(grandchild)
+        else:
+            neg_child.add_child(grandchild)
+    return root
 
 def build_tree(X):
     """

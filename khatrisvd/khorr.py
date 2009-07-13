@@ -18,6 +18,16 @@ import numpy as np
 
 import util
 
+def get_dominant_vector(U, S):
+    """
+    @param U: columns are eigenvectors
+    @param S: conformant singular values
+    @return: the eigenvector corresponding to the largest eigenvalue
+    """
+    best_w, best_i = max((w, i) for i, w in enumerate(S))
+    v = U.T[best_i]
+    return v
+
 def get_fiedler_vector(U, S):
     """
     The first element of the output vector is forced to be nonnegative.
