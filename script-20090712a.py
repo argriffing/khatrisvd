@@ -55,7 +55,10 @@ def main():
     logging.debug('augmenting the data matrix')
     W = khorr.standardized_to_augmented_C(Z)
     end_time = time.time()
-    print end_time - start_time
+    print 'nseconds:', end_time - start_time
+    print 'W.size:', W.size
+    print 'W.itemsize:', W.itemsize
+    print 'W.size * W.itemsize:', W.size * W.itemsize
     raw_input('kbye\n')
 
 if __name__ == '__main__':
