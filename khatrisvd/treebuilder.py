@@ -159,6 +159,7 @@ def build_tree(X):
     boxed_U = [U]
     del U
     root = build_tree_helper(boxed_U, S, range(len(X)), tree_data)
+    sort_tree(root)
     return root
 
 
@@ -296,6 +297,22 @@ def build_tree_helper(boxed_U_in, S_in, ordered_labels, tree_data):
     right_root = right_root.remove()
     left_root.add_child(right_root)
     return left_root
+
+def sort_tree(root):
+    """
+    Enforce an ordering on the child trees.
+    The children of a node will be sorted according to their size,
+    where their size is defined by the number of leaves in their subtree.
+    @param root: the root of an mtree
+    @return: the number of leaves in the subtree defined by the root.
+    """
+    if not root.children:
+        return 1
+    count_child_pairs = list(sorted((sort_tree(child), child) for child in root.children))
+    # reorder the children
+    root.children = [child for count, child in count_child_pairs]
+    # return the number of leaves
+    return sum(count for count, child in count_child_pairs)
 
 
 class TestMe(unittest.TestCase):

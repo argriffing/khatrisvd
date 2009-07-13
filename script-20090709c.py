@@ -40,9 +40,9 @@ def analyze(input_data_path, output_image_path, tree_building_function):
 def main():
     for filename in os.listdir(g_input_directory):
         #if True:
-        #if filename.endswith('csv') and not filename.startswith('LGE'):
+        if filename.endswith('csv') and not filename.startswith('LGE'):
         #if filename.startswith('LGE'):
-        if filename.startswith('Sta'):
+        #if filename.startswith('Sta'):
         #if filename.startswith('LGE') and filename.endswith('60.csv'):
             logging.debug(filename)
             input_data_path = os.path.join(g_input_directory, filename)
