@@ -52,6 +52,38 @@ def get_permuted_rows_and_columns(M, ordered_indices):
     """
     return get_permuted_rows(get_permuted_columns(M, ordered_indices), ordered_indices)
 
+def get_reduced_heatmap_image(M, entry_to_rgb, reduction=5):
+    """
+    @param M: a tall matrix such that dot products of rows are mapped to colors
+    @param entry_to_rgb: a function that returns an RGB color given an entry of MM'
+    @param reduction: a square this many pixels across is reduced to a single pixel
+    """
+    # get the number of rows in the input matrix
+    n = len(M)
+    # get the number of pixels on one side of the output image
+    npixels, remainder = divmod(n, reduction)
+    if remainder:
+        npixels += 1
+    # draw the image pixel by pixel
+    im = Image.new('RGB', (npixels, npixels), 'red')
+    for xpixel_index in range(npixels):
+        for ypixel_index in range(npixels):
+            # count the number of things that have gone in the bin
+            nhits = 0
+            # accumulate red, green, and blue
+            rgb_accum = np.array([0, 0, 0])
+            for x in range(reduction):
+                for y in range(reduction):
+                    nx = xpixel_index*reduction + x
+                    ny = ypixel_index*reduction + y
+                    if nx < n and ny < n:
+                        value = np.dot(M[nx], M[ny])
+                        rgb_accum += np.array(entry_to_rgb(value))
+                        nhits += 1
+            rgb = tuple((rgb_accum / nhits).tolist())
+            im.putpixel((xpixel_index, ypixel_index), rgb)
+    return im
+
 def get_heatmap_image(M, entry_to_rgb):
     """
     The input is meant to be an entrywise squared correlation matrix.
