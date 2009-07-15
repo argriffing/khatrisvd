@@ -16,12 +16,16 @@ from khatrisvd import khorr
 
 def do_slow_stuff():
     # construct some random data
-    p, n = 200, 10
+    p, n = 2600, 50
+    reduction = 13
     # construct the downsampled heatmap of the correlation of the data
     X = np.random.random((p, n))
     Z = khorr.get_standardized_matrix(X)
     color_function = gradient.correlation_to_rgb
-    im = heatmap.get_reduced_heatmap_image(Z, color_function, reduction=10)
+    im = heatmap.get_reduced_heatmap_image(Z, color_function, reduction=reduction)
+    fout = open('profile-test.png', 'wb')
+    im.save(fout)
+    fout.close()
 
 def main():
     profile.run('do_slow_stuff()')

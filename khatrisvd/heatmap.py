@@ -52,12 +52,12 @@ def get_permuted_rows_and_columns(M, ordered_indices):
     """
     return get_permuted_rows(get_permuted_columns(M, ordered_indices), ordered_indices)
 
-def get_reduced_heatmap_image(M, entry_to_rgb, reduction=5, line_callback=None):
+def get_reduced_heatmap_image(M, reduction=5, pixel_callback=None):
     """
+    The input is expected to be a correlation matrix.
     @param M: a tall matrix such that dot products of rows are mapped to colors
-    @param entry_to_rgb: a function that returns an RGB color given an entry of MM'
     @param reduction: a square this many pixels across is reduced to a single pixel
-    @param line_callback: a function that is called with the number of lines completed
+    @param pixel_callback: a function that is called for each nonredundant pixel
     """
     # int((((x+1)/2)*63)+1/2)
     # int(x*31.5 + 32)
@@ -72,19 +72,20 @@ def get_reduced_heatmap_image(M, entry_to_rgb, reduction=5, line_callback=None):
     if remainder:
         npixels += 1
     # draw the image pixel by pixel
+    ndrawn = 0
     im = Image.new('RGB', (npixels, npixels), 'red')
     for xpixel_index in range(npixels):
         xblock = M[xpixel_index*reduction : (xpixel_index+1)*reduction]
         for ypixel_index in range(npixels):
             if xpixel_index <= ypixel_index:
                 yblock = M[ypixel_index*reduction : (ypixel_index+1)*reduction]
-                submatrix = np.array(alpha*np.dot(xblock, yblock.T) + beta, dtype=np.int32)
-                rgb_sum = sum(colors[i] for i in submatrix.flat)
-                rgb = tuple(rgb_sum / submatrix.size)
+                rgb_colorsys = gradient.vectorized_correlation_to_rgb(np.dot(xblock, yblock.T))
+                rgb = tuple(int(255*x) for x in rgb_colorsys)
                 im.putpixel((xpixel_index, ypixel_index), rgb)
                 im.putpixel((ypixel_index, xpixel_index), rgb)
-        if line_callback:
-            line_callback(xpixel_index + 1)
+                if pixel_callback:
+                    ndrawn += 1
+                    pixel_callback(ndrawn)
     return im
 
 def get_heatmap_image(M, entry_to_rgb):

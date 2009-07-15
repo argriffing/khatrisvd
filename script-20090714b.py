@@ -37,18 +37,20 @@ def main():
     X = heatmap.get_permuted_rows(X, ordered_indices)
     # create the standardized data for drawing the small heatmap
     Z = khorr.get_standardized_matrix(X)
-    color_function = gradient.correlation_to_rgb
     # initialize the progress bar
     reduction = 100
-    p = progress.Bar(len(X)/reduction+1)
+    npixels, remainder = divmod(len(X), reduction)
+    if remainder:
+        npixels += 1
+    pbar = progress.Bar((npixels*(npixels+1))/2)
     # show the small heatmap
     pathname_out = 'small.png'
-    im = heatmap.get_reduced_heatmap_image(Z, color_function, reduction=reduction, line_callback=p.update)
+    im = heatmap.get_reduced_heatmap_image(Z, reduction=reduction, pixel_callback=pbar.update)
     fout = open(pathname_out, 'wb')
     im.save(fout)
     fout.close()
     # finish the progress bar
-    p.finish()
+    pbar.finish()
 
 if __name__ == '__main__':
     main()
