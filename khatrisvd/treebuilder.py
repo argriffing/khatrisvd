@@ -303,6 +303,7 @@ def sort_tree(root):
     Enforce an ordering on the child trees.
     The children of a node will be sorted according to their size,
     where their size is defined by the number of leaves in their subtree.
+    The root is unchanged by sorting.
     @param root: the root of an mtree
     @return: the number of leaves in the subtree defined by the root.
     """
@@ -311,8 +312,136 @@ def sort_tree(root):
     count_child_pairs = list(sorted((sort_tree(child), child) for child in root.children))
     # reorder the children
     root.children = [child for count, child in count_child_pairs]
-    # return the number of leaves
+    # return the number of leaves in the subtree
     return sum(count for count, child in count_child_pairs)
+
+def build_id_to_nlabels(root, id_to_nlabels):
+    """
+    The dictionary id_to_labels is built recursively.
+    @param root: the root of an mtree
+    @param id_to_nleaves: a map from node id to number of labels in the subtree
+    @return: the updated id_to_nlabels dictionary
+    """
+    nlabels = 0
+    if root.has_label():
+        nlabels += 1
+    for child in root.children:
+        nlabels += build_id_to_nlabels(child, id_to_nlabels)[id(child)]
+    id_to_nlabels[id(root)] = nlabels
+    return id_to_nlabels
+
+def _tree_to_splits_helper(root, nlabels_total, parent_set, id_to_nlabels, half_splits):
+    """
+    The parent set is None unless the subtree has at least half the total number of labels in the tree.
+    @param root: the root of an mtree
+    @param nlabels_total: the total number of labels in the tree
+    @param parent_set: None or a small set of labels of leaves reachable only through the parent
+    @param id_to_nlabels: a map from node id to number of labels in the subtree
+    @param half_splits: a list of leaf label sets that is being built
+    @return: the set of labels in the subtree
+    """
+    #FIXME this function is unused
+    # if the parent set is nontrivial then add a copy to the half splits
+    if parent_set:
+        half_splits.append(parent_set.copy())
+    # get the number of labels in the subtree
+    nlabels = id_to_nlabels[id(root)]
+    # get the number of labels in the child trees
+    child_labels = set()
+    for child in root.children:
+        pass
+    # If the number of labels in the subtree is at most half
+    # of the total number of labels in the tree,
+    # then add the union of subtree sets to the the half split list.
+    pass
+
+def tree_to_splits(root):
+    """
+    @param root: the root of an mtree
+    @return: the set of half-splits defined by the multifurcating tree
+    """
+    #FIXME this function is unused
+    pass
+
+def get_center(root, nlabels_total, id_to_nlabels):
+    """
+    Get a center of a tree.
+    When a tree is rooted at a central node,
+    then no subtree has more than half of the leaves.
+    Nodes are assumed to have labels iff they are leaves.
+    @param root: the original root of the tree
+    @param nlabels_total: the number of labels in the tree
+    @param id_to_nlabels: the number of labels in each subtree
+    @return: the center of the tree
+    """
+    #FIXME this function is unused
+    pass
+
+def center_and_sort_tree(root):
+    """
+    @param root: the original root of the tree
+    @return: the new root of the tree
+    """
+    # calculate subtree sizes
+    id_to_nlabels = build_id_to_nlabels(root, {})
+    # calculate the size of the tree
+    nlabels_total = id_to_nlabels[id(root)]
+    # find the center
+    next_root = root
+    while True:
+        max_nlabels, max_child = max((id_to_nlabels[id(c)], c) for c in next_root.children)
+        if max_nlabels <= nlabels_total / 2:
+            break
+        next_root = max_child
+    # reroot at the center
+    next_root.reroot()
+    # remove the old root if it is degree 2
+    if root.degree() == 2:
+        root.remove()
+    # resort the tree
+    sort_tree(next_root)
+    # return the new root
+    return next_root
+
+def _get_clusters_helper(root, clusters):
+    """
+    This helper function is recursive.
+    @param root: the root of the subtree
+    @param clusters: the list of cluster sets that is being built.
+    """
+    if root.has_label():
+        return set([root.label])
+    cluster = set()
+    for child in root.children:
+        child_cluster = _get_clusters_helper(child, clusters)
+        if len(child_cluster) > 1:
+            clusters.append(child_cluster)
+        cluster.update(child_cluster)
+    return cluster
+
+def get_clusters(root):
+    """
+    Get clusters that define half-splits of the multifurcating tree.
+    @param root: the root of the centered and sorted tree
+    @return: half-splits
+    """
+    clusters = []
+    _get_clusters_helper(root, clusters)
+    return clusters
+
+def get_label_set(root):
+    """
+    This is a simple recursive function.
+    It is mostly for testing.
+    @param root: the root of a tree
+    @return: the set of labels below the root
+    """
+    if root.has_label():
+        return set([root.label])
+    leaf_set = set()
+    for child in root.children:
+        leaf_set.update(get_label_set(child))
+    return leaf_set
 
 
 class TestMe(unittest.TestCase):
@@ -346,6 +475,28 @@ class TestMe(unittest.TestCase):
         print
         print root.get_newick_string()
         print
+
+    def test_id_to_nlabels(self):
+        root = mtree.create_tree([[[0, [1, 2]], 3, [4, 5, 6]],7])
+        id_to_nlabels = build_id_to_nlabels(root, {})
+        self.assertEqual(id_to_nlabels[id(root)], 8)
+        child_nlabels = [id_to_nlabels[id(child)] for child in root.children]
+        self.assertEqual(sum(child_nlabels), 8)
+
+    def test_center_and_sort_tree(self):
+        root = mtree.create_tree([[[0, [1, 2]], 3, [4, 5, 6]],7])
+        root = center_and_sort_tree(root)
+        expected = set(frozenset(x) for x in [[0,1,2],[3],[7],[4,5,6]])
+        observed = set(frozenset(get_label_set(c)) for c in root.children)
+        self.assertEqual(expected, observed)
+
+    def test_clusters(self):
+        root = mtree.create_tree([[[0, [1, 2]], 3, [4, 5, 6]],7])
+        root = center_and_sort_tree(root)
+        clusters = get_clusters(root)
+        observed = set(frozenset(x) for x in clusters)
+        expected = set(frozenset(x) for x in [[1,2],[0,1,2],[4,5,6]])
+        self.assertEqual(expected, observed)
 
 
 if __name__ == '__main__':
