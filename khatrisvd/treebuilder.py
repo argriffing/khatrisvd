@@ -330,53 +330,6 @@ def build_id_to_nlabels(root, id_to_nlabels):
     id_to_nlabels[id(root)] = nlabels
     return id_to_nlabels
 
-def _tree_to_splits_helper(root, nlabels_total, parent_set, id_to_nlabels, half_splits):
-    """
-    The parent set is None unless the subtree has at least half the total number of labels in the tree.
-    @param root: the root of an mtree
-    @param nlabels_total: the total number of labels in the tree
-    @param parent_set: None or a small set of labels of leaves reachable only through the parent
-    @param id_to_nlabels: a map from node id to number of labels in the subtree
-    @param half_splits: a list of leaf label sets that is being built
-    @return: the set of labels in the subtree
-    """
-    #FIXME this function is unused
-    # if the parent set is nontrivial then add a copy to the half splits
-    if parent_set:
-        half_splits.append(parent_set.copy())
-    # get the number of labels in the subtree
-    nlabels = id_to_nlabels[id(root)]
-    # get the number of labels in the child trees
-    child_labels = set()
-    for child in root.children:
-        pass
-    # If the number of labels in the subtree is at most half
-    # of the total number of labels in the tree,
-    # then add the union of subtree sets to the the half split list.
-    pass
-
-def tree_to_splits(root):
-    """
-    @param root: the root of an mtree
-    @return: the set of half-splits defined by the multifurcating tree
-    """
-    #FIXME this function is unused
-    pass
-
-def get_center(root, nlabels_total, id_to_nlabels):
-    """
-    Get a center of a tree.
-    When a tree is rooted at a central node,
-    then no subtree has more than half of the leaves.
-    Nodes are assumed to have labels iff they are leaves.
-    @param root: the original root of the tree
-    @param nlabels_total: the number of labels in the tree
-    @param id_to_nlabels: the number of labels in each subtree
-    @return: the center of the tree
-    """
-    #FIXME this function is unused
-    pass
-
 def center_and_sort_tree(root):
     """
     @param root: the original root of the tree
@@ -425,8 +378,14 @@ def get_clusters(root):
     @param root: the root of the centered and sorted tree
     @return: half-splits
     """
+    # get most of the clusters
     clusters = []
-    _get_clusters_helper(root, clusters)
+    all_labels = _get_clusters_helper(root, clusters)
+    # deal with the edge case where the tree can be split exactly in half
+    for cluster in clusters:
+        if len(cluster)*2 == len(all_labels):
+            clusters.append(all_labels - cluster)
+            break
     return clusters
 
 def get_label_set(root):
@@ -490,12 +449,20 @@ class TestMe(unittest.TestCase):
         observed = set(frozenset(get_label_set(c)) for c in root.children)
         self.assertEqual(expected, observed)
 
-    def test_clusters(self):
+    def test_clusters_a(self):
         root = mtree.create_tree([[[0, [1, 2]], 3, [4, 5, 6]],7])
         root = center_and_sort_tree(root)
         clusters = get_clusters(root)
         observed = set(frozenset(x) for x in clusters)
         expected = set(frozenset(x) for x in [[1,2],[0,1,2],[4,5,6]])
+        self.assertEqual(expected, observed)
+
+    def test_clusters_b(self):
+        root = mtree.create_tree([[[0, [1, 2]], [3, [4, 5, 6]]],7])
+        root = center_and_sort_tree(root)
+        clusters = get_clusters(root)
+        observed = set(frozenset(x) for x in clusters)
+        expected = set(frozenset(x) for x in [[1,2],[0,1,2],[4,5,6],[0,1,2,7],[3,4,5,6]])
         self.assertEqual(expected, observed)
 
 
