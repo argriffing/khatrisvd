@@ -168,6 +168,60 @@ def create_tree(term):
         root.label = term
     return root
 
+def _newick_to_tokens(newick):
+    """
+    The newick string must be absurdly simple.
+    @return: a list of tokens
+    """
+    tokens = []
+    int_string = ''
+    digits = '0123456789'
+    punctuation = '(),;'
+    for c in newick:
+        if c in digits:
+            int_string += c
+        else:
+            if int_string:
+                tokens.append(int(int_string))
+                int_string = ''
+            if c in punctuation:
+                tokens.append(c)
+    return tokens
+
+def _tokens_to_subtree(tokens, initial_offset):
+    """
+    The first indexed token should be an open parenthesis.
+    The last indexed token should be after a close parenthesis.
+    @param tokens: the list of tokens
+    @param offset: the offset into the list of tokens
+    @return: an offset and a subtree
+    """
+    root = Node()
+    offset = initial_offset
+    if type(tokens[offset]) is int:
+        # handle the degenerate case
+        root.label = tokens[offset]
+    elif tokens[initial_offset] == '(':
+        # skip past the open parenthesis
+        offset += 1
+        # go until a close parenthesis
+        while tokens[offset] != ')':
+            if tokens[offset] == '(' or type(tokens[offset]) is int:
+                offset, child = _tokens_to_subtree(tokens, offset)
+                root.add_child(child)
+            else:
+                offset += 1
+    return offset + 1, root
+
+def newick_to_mtree(newick):
+    """
+    The newick string must be absurdly simple.
+    """
+    tokens = _newick_to_tokens(newick)
+    if tokens[-1] != ';':
+        raise ValueError('the newick string must end with a semicolon')
+    offset, root = _tokens_to_subtree(tokens, 0)
+    return root
 
 class TestMe(unittest.TestCase):
 
@@ -230,6 +284,19 @@ class TestMe(unittest.TestCase):
         root = create_tree([[0, [1, 2]], 3, [4, 5, 6]])
         observed = root.ordered_labels()
         expected = range(7)
+        self.assertEqual(expected, observed)
+
+    def test_newick_to_tokens(self):
+        newick = '(0, 1, (24, 3));'
+        expected = ['(', 0, ',', 1, ',', '(', 24, ',', 3, ')', ')', ';']
+        observed = _newick_to_tokens(newick)
+        self.assertEqual(expected, observed)
+
+    def test_newick_to_mtree(self):
+        newick = '(0, 1, (24, 3));'
+        root = newick_to_mtree(newick)
+        observed = root.get_newick_string()
+        expected = newick
         self.assertEqual(expected, observed)
 
 
