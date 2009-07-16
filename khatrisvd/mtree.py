@@ -112,6 +112,23 @@ class Node:
             root.remove_child(child)
             child.add_child(root)
 
+    def remove_stable_degree_two_non_root(self):
+        """
+        Remove a useless node.
+        @return: the node that was the parent
+        """
+        if not self.parent:
+            raise ValueError('this function does not work on the root')
+        if len(self.children) != 1:
+            raise ValueError('this function does not work with more than one child')
+        parent = self.parent
+        child = self.children[0]
+        self.children = []
+        self.parent = None
+        parent.children = [(child if c is self else c) for c in parent.children]
+        child.parent = parent
+        return parent
+
     def remove(self):
         """
         Remove the node of degree 1 or 2.
@@ -223,6 +240,48 @@ def newick_to_mtree(newick):
     offset, root = _tokens_to_subtree(tokens, 0)
     return root
 
+def _leaves_to_subtree_helper(root, required_ids):
+    """
+    @param root: the root of the template tree
+    @param required_ids: clone these nodes in the template tree
+    @return: a new node
+    """
+    if id(root) not in required_ids:
+        raise ValueError('the root should be in the required id set')
+    cloned_root = Node()
+    if root.has_label():
+        cloned_root.label = root.label
+    for child in root.children:
+        if id(child) in required_ids:
+            cloned_root.add_child(_leaves_to_subtree_helper(child, required_ids))
+    return cloned_root
+
+def leaves_to_subtree(root, leaves):
+    """
+    None of the original nodes are in the returned subtree.
+    @parm root: the root of a tree
+    @param leaves: leaves of the tree
+    @return: a copy of enough of the tree to reach the leaves
+    """
+    # get the set of required nodes
+    required_ids = set()
+    for node in leaves:
+        current = node
+        while current:
+            if id(current) in required_ids:
+                break
+            required_ids.add(id(current))
+            current = current.parent
+    # clone the required subset of the tree
+    cloned_root = _leaves_to_subtree_helper(root, required_ids)
+    # remove non-root degree 2 nodes
+    for node in cloned_root.preorder():
+        if node.parent and node.degree() == 2:
+            node.remove_stable_degree_two_non_root()
+    # return the cloned root
+    return cloned_root
+
+
 class TestMe(unittest.TestCase):
 
     def test_creation(self):
@@ -297,6 +356,14 @@ class TestMe(unittest.TestCase):
         root = newick_to_mtree(newick)
         observed = root.get_newick_string()
         expected = newick
+        self.assertEqual(expected, observed)
+
+    def test_leaves_to_subtree(self):
+        root = create_tree([[0, [1, 2]], 3, [4, 5, 6]])
+        leaves = [tip for tip in root.preorder() if tip.label in [1,2,3,4]]
+        cloned = leaves_to_subtree(root, leaves)
+        expected = '((1, 2), 3, 4);'
+        observed = cloned.get_newick_string()
         self.assertEqual(expected, observed)
 
 
