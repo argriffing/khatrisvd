@@ -22,6 +22,8 @@ A dendrogram for the low zoom window would be less useful.
 The two low zoom windows could have crosshairs showing the region
 represented at a higher zoom level in the window to its right.
 Clicking on a point in a low zoom window should change the selected region.
+
+Abbreviations are im for PIL image and tkim for a tk image object.
 """
 
 
@@ -69,9 +71,26 @@ class GeneNames:
 
     def __init__(self, app, parent, ordered_names):
         """
+        @param app: the application object
+        @param parent: the parent container
+        @param ordered_names: ordered gene names
         """
-        #TODO something here...
-        pass
+        self.app = app
+        self.parent = parent
+        self.ordered_names = ordered_names
+        # make the canvas
+        self.canvas = Tkinter.Canvas(self.parent, width=10, height=self.npixels)
+        self.tkim = None
+        #TODO stuff here
+
+    def on_selection(self, index_range):
+        begin, end = index_range
+        selected_names = [self.ordered_names[i] for i in range(begin, end)]
+        # make a container with a bunch of labels with the names
+        self.container = Tkinter.Frame()
+        labels = None
+        #TODO stuff here
+        self.app.repack()
 
 
 class EastDendrogramWindow:
@@ -81,6 +100,7 @@ class EastDendrogramWindow:
 
     def __init__(self, app, parent, npixels, root, label_to_leaf):
         """
+        @param app: the application object
         @param parent: the parent container
         @param npixels: the height of the canvas
         @param root: the root of the mtree
@@ -92,7 +112,7 @@ class EastDendrogramWindow:
         self.root = root
         self.label_to_leaf = label_to_leaf
         # make the canvas
-        self.canvas = Tkinter.Canvas(self.parent, width=10, height=self.npixels, bg='lightgreen')
+        self.canvas = Tkinter.Canvas(self.parent, width=10, height=self.npixels)
         # initialize some junk that will be created when there is actually a dendrogram
         self.im = None
         self.nleaves = None
