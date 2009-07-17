@@ -230,6 +230,12 @@ def _tokens_to_subtree(tokens, initial_offset):
                 offset += 1
     return offset + 1, root
 
+def newick_file_to_mtree(newick_filename):
+    fin = open(newick_filename)
+    newick_string = fin.read()
+    fin.close()
+    return newick_to_mtree(newick_string)
+
 def newick_to_mtree(newick):
     """
     The newick string must be absurdly simple.
