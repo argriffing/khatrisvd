@@ -32,6 +32,7 @@ import sys
 
 import ImageTk
 import Image
+import ImageDraw
 import numpy as np
 
 from khatrisvd import util
@@ -64,32 +65,58 @@ def get_gene_names(data_filename):
     # return the list
     return names
 
-class GeneNames:
+
+class GeneNameWindow:
     """
     Show some gene names in a window.
     """
 
-    def __init__(self, app, parent, ordered_names):
+    def __init__(self, app, parent, npixels, ordered_names):
         """
         @param app: the application object
         @param parent: the parent container
+        @param npixels: the number of pixels of height
         @param ordered_names: ordered gene names
         """
         self.app = app
         self.parent = parent
+        self.npixels = npixels
         self.ordered_names = ordered_names
-        # make the canvas
+        # make the placeholder canvas
         self.canvas = Tkinter.Canvas(self.parent, width=10, height=self.npixels)
+        # initialize the tk image
         self.tkim = None
-        #TODO stuff here
 
     def on_selection(self, index_range):
         begin, end = index_range
         selected_names = [self.ordered_names[i] for i in range(begin, end)]
-        # make a container with a bunch of labels with the names
-        self.container = Tkinter.Frame()
-        labels = None
-        #TODO stuff here
+        # create a dummy image and get some required dimensions
+        dummy = Image.new('RGB', (10, 10), 'white')
+        draw = ImageDraw.Draw(dummy)
+        width_height_pairs = [draw.textsize(name) for name in selected_names]
+        max_width = max(width for width, height in width_height_pairs)
+        max_height = max(height for width, height in width_height_pairs)
+        del draw
+        # draw the gene names on a new image
+        image_width = max_width
+        image_height = self.npixels
+        im = Image.new('RGB', (image_width, image_height), 'white')
+        draw = ImageDraw.Draw(im)
+        n = len(selected_names)
+        blocksize = self.npixels / n
+        for i, name in enumerate(selected_names):
+            w, h = draw.textsize(name)
+            x = 0
+            dy = max((blocksize - h) / 2, 0)
+            y = (i * self.npixels) / n + dy
+            draw.text((x, y), name, fill='black')
+        del draw
+        # create the tkinter gene name image
+        self.tkim = ImageTk.PhotoImage(im)
+        # remake the canvas with the new image
+        self.canvas.destroy()
+        self.canvas = Tkinter.Canvas(self.parent, width=image_width, height=image_height)
+        self.canvas.create_image(0, 0, image=self.tkim, anchor=Tkinter.NW)
         self.app.repack()
 
 
@@ -224,7 +251,7 @@ class MidZoom:
         self.Z = Z
         self.nindices = nindices
         # do validation
-        if self.Z:
+        if self.Z is not None:
             if len(self.Z) != self.nindices:
                 raise ValueError('the number of rows in Z should be the same as the number of indices')
         self.canvas = Tkinter.Canvas(self.parent, width=self.npixels, height=self.npixels, bg='lightyellow')
@@ -259,7 +286,7 @@ class MidZoom:
         # get the new row and column ranges
         self.row_range = self._center_to_range(center_row_index)
         self.column_range = self._center_to_range(center_column_index)
-        if self.Z:
+        if self.Z is not None:
             # convert the center indices to valid index ranges
             row_begin, row_end = self.row_range
             column_begin, column_end = self.column_range
@@ -323,7 +350,7 @@ class HighZoom:
         self.Z = Z
         self.nindices = nindices
         # do validation
-        if self.Z:
+        if self.Z is not None:
             if len(self.Z) != self.nindices:
                 raise ValueError('the number of rows in Z should be the same as the number of indices')
         # each correlation coefficient is represented by a block this many pixels wide
@@ -359,7 +386,7 @@ class HighZoom:
         # get the new row and column ranges
         self.row_range = self._center_to_range(center_row_index)
         self.column_range = self._center_to_range(center_column_index)
-        if self.Z:
+        if self.Z is not None:
             # convert the center indices to valid index ranges
             row_begin, row_end = self.row_range
             column_begin, column_end = self.column_range
@@ -401,7 +428,7 @@ class Main:
         # save some args
         self.parent = parent
         # define some options
-        self.npixels = 400
+        self.npixels = 300
         # create the tkinter image
         print 'creating the low resolution image...'
         raw_pil_image = Image.open(low_zoom_image_filename)
@@ -429,7 +456,7 @@ class Main:
         self._connect_windows()
         # cache some of the information
         # TODO this information could go into other child windows
-        self.ordered_gene_names = ordered_gene_names
+        #self.ordered_gene_names = ordered_gene_names
 
     def _init_windows(self, low_zoom_image, Z, ordered_names):
         """
@@ -442,6 +469,7 @@ class Main:
         self.low_zoom = LowZoom(self, self.parent, self.npixels, low_zoom_image, nindices)
         self.mid_zoom = MidZoom(self, self.parent, self.npixels, Z, nindices)
         self.high_zoom = HighZoom(self, self.parent, self.npixels, Z, nindices)
+        self.gene_name_window = GeneNameWindow(self, self.parent, self.npixels, ordered_names)
         self.east_dendrogram = EastDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
 
     def repack(self):
@@ -451,6 +479,7 @@ class Main:
         self.low_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
         self.mid_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
         self.high_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
+        self.gene_name_window.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
         self.east_dendrogram.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
 
     def _connect_windows(self):
@@ -465,11 +494,13 @@ class Main:
         """
         @param index_range: the begin and end indices of a range
         """
+        self.gene_name_window.on_selection(row_index_range)
         self.east_dendrogram.on_selection(row_index_range)
         # FIXME this cheese_canvas stuff is temporary
         #self.cheese_canvas = Tkinter.Canvas(self.container, width=10, height=self.npixels, bg='lightblue')
         #self.cheese_canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
         # show stuff on the terminal
+        """
         print 'row genes:'
         begin, end = row_index_range
         for name in self.ordered_gene_names[begin:end]:
@@ -478,6 +509,7 @@ class Main:
         begin, end = column_index_range
         for name in self.ordered_gene_names[begin:end]:
             print name
+        """
 
 
 def main():
