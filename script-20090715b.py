@@ -35,6 +35,7 @@ import numpy as np
 from khatrisvd import util
 from khatrisvd import khorr
 from khatrisvd import mtree
+from khatrisvd import dendro
 
 
 def get_gene_names(data_filename):
@@ -61,13 +62,94 @@ def get_gene_names(data_filename):
     # return the list
     return names
 
+class GeneNames:
+    """
+    Show some gene names in a window.
+    """
+
+    def __init__(self, app, parent, ordered_names):
+        """
+        """
+        #TODO something here...
+        pass
+
+
+class EastDendrogramWindow:
+    """
+    Draw a dendrogram to the right of a correlation window.
+    """
+
+    def __init__(self, app, parent, npixels, root, label_to_leaf):
+        """
+        @param parent: the parent container
+        @param npixels: the height of the canvas
+        @param root: the root of the mtree
+        @param label_to_leaf: a map from labels to leaves
+        """
+        self.app = app
+        self.parent = parent
+        self.npixels = npixels
+        self.root = root
+        self.label_to_leaf = label_to_leaf
+        # make the canvas
+        self.canvas = Tkinter.Canvas(self.parent, width=10, height=self.npixels, bg='lightgreen')
+        # initialize some junk that will be created when there is actually a dendrogram
+        self.im = None
+        self.nleaves = None
+        self.tkim = None
+
+    def on_selection(self, index_range):
+        """
+        Draw a new dendrogram.
+        @param row_range: the begin and end indices
+        """
+        # create the stable subtree
+        begin, end = index_range
+        leaves = [self.label_to_leaf[label] for label in range(begin, end)]
+        cloned = mtree.leaves_to_subtree(self.root, leaves)
+        # create the dendrogram PIL image
+        self.nleaves = len(leaves)
+        blocksize = self.npixels / self.nleaves
+        breadth_gap = blocksize - 1
+        height_gap = 3
+        image_height = self.npixels
+        image_width = dendro.get_dendrogram_height(cloned, height_gap)
+        print 'image width:', image_width
+        print 'image height:', image_height
+        self.im = Image.new('RGB', (image_width, image_height), 'white')
+        dendro.draw_dendrogram(cloned, breadth_gap, height_gap, self.on_draw_line)
+        # create the dendrogram tkinter image
+        self.tkim = ImageTk.PhotoImage(self.im)
+        # remake the canvas with the new image
+        self.canvas.destroy()
+        self.canvas = Tkinter.Canvas(self.parent, width=image_width, height=image_height)
+        self.canvas.create_image(0, 0, image=self.tkim, anchor=Tkinter.NW)
+        self.app.repack()
+
+    def on_draw_line(self, line):
+        """
+        This is called by the dendrogram builder.
+        This assumes that there is a self.im image of the correct size.
+        @param line: each endpoint is a (breadth_offset, height_offset) pair
+        """
+        blocksize = self.npixels / self.nleaves
+        initial_breadth_offset = blocksize / 2
+        black = (0, 0, 0)
+        ((a, b), (c, d)) = line
+        if a == c:
+            for height_offset in range(min(b, d), max(b, d) + 1):
+                self.im.putpixel((height_offset, initial_breadth_offset + a), black)
+        elif b == d:
+            for breadth_offset in range(min(a, c), max(a, c) + 1):
+                self.im.putpixel((b, initial_breadth_offset + breadth_offset), black)
+
 
 class LowZoom:
     """
     Show the whole heatmap at a low zoom level.
     """
 
-    def __init__(self, parent, npixels, image, nindices):
+    def __init__(self, app, parent, npixels, image, nindices):
         """
         @param parent: the parent container
         @param npixels: the width and height of the canvas
@@ -77,6 +159,7 @@ class LowZoom:
         # initialize the zoom target
         self.zoom_target_function = None
         # save the args
+        self.app = app
         self.parent = parent
         self.npixels = npixels
         self.image = image
@@ -108,13 +191,14 @@ class MidZoom:
     Show one pixel per correlation coefficient.
     """
 
-    def __init__(self, parent, npixels, Z, nindices):
+    def __init__(self, app, parent, npixels, Z, nindices):
         """
         @param parent: the parent container
         @param npixels: the width and height of the canvas
         @param Z: None or this matrix times its transpose gives the correlation matrix
         @param nindices: the number of rows and column in the correlation matrix
         """
+        self.app = app
         self.parent = parent
         self.npixels = npixels
         self.Z = Z
@@ -205,7 +289,7 @@ class HighZoom:
     Show multiple pixels per correlation coefficient.
     """
 
-    def __init__(self, parent, npixels, Z, nindices):
+    def __init__(self, app, parent, npixels, Z, nindices):
         """
         @param parent: the parent container
         @param npixels: the width and height of the canvas
@@ -213,6 +297,7 @@ class HighZoom:
         @param nindices: the number of rows and column in the correlation matrix
         """
         # save the args
+        self.app = app
         self.parent = parent
         self.npixels = npixels
         self.Z = Z
@@ -304,20 +389,22 @@ class Main:
         low_zoom_image = ImageTk.PhotoImage(low_zoom_pil_image)
         # create the list of ordered gene names
         print 'creating the list of ordered gene names...'
-        root = mtree.newick_file_to_mtree(tree_filename)
+        self.mtree_root = mtree.newick_file_to_mtree(tree_filename)
         names = get_gene_names(data_filename)
-        ordered_gene_names = [names[row_index] for row_index in root.ordered_labels()]
+        ordered_gene_names = [names[row_index] for row_index in self.mtree_root.ordered_labels()]
         # create the standardized and sorted data matrix
         #print 'creating the ordered correlation square root...'
         #X = util.file_to_comma_separated_matrix(data_filename, has_headers=True)
         #Z = khorr.get_standardized_matrix(X)
-        #Z = np.vstack(Z[row_index] for row_index in root.ordered_labels())
+        #Z = np.vstack(Z[row_index] for row_index in self.mtree_root.ordered_labels())
         Z = None
-        # make a container to help with the layout
-        self.container = Tkinter.Frame(parent)
-        self.container.pack()
+        # create the label to leaf map
+        print 'creating the map from labels to leaves...'
+        self.label_to_leaf = dict((tip.label, tip) for tip in self.mtree_root.ordered_tips())
         # initialize the windows individually
         self._init_windows(low_zoom_image, Z, ordered_gene_names)
+        # redo the layout of the windows
+        self.repack()
         # initialize the connections among the windows
         self._connect_windows()
         # cache some of the information
@@ -331,16 +418,20 @@ class Main:
         @param Z: None or a standardized and sorted square root of the correlation matrix
         @param names: ordered gene names or probeset ids
         """
-        # initialize the low-zoom window
         nindices = len(ordered_names)
-        self.low_zoom = LowZoom(self.container, self.npixels, low_zoom_image, nindices)
+        self.low_zoom = LowZoom(self, self.parent, self.npixels, low_zoom_image, nindices)
+        self.mid_zoom = MidZoom(self, self.parent, self.npixels, Z, nindices)
+        self.high_zoom = HighZoom(self, self.parent, self.npixels, Z, nindices)
+        self.east_dendrogram = EastDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
+
+    def repack(self):
+        """
+        Redo the layouts.
+        """
         self.low_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
-        # initialize the mid-zoom window
-        self.mid_zoom = MidZoom(self.container, self.npixels, Z, nindices)
         self.mid_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
-        # initialize the high-zoom window
-        self.high_zoom = HighZoom(self.container, self.npixels, Z, nindices)
         self.high_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
+        self.east_dendrogram.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
 
     def _connect_windows(self):
         """
@@ -354,9 +445,10 @@ class Main:
         """
         @param index_range: the begin and end indices of a range
         """
+        self.east_dendrogram.on_selection(row_index_range)
         # FIXME this cheese_canvas stuff is temporary
-        self.cheese_canvas = Tkinter.Canvas(self.container, width=10, height=self.npixels, bg='lightblue')
-        self.cheese_canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
+        #self.cheese_canvas = Tkinter.Canvas(self.container, width=10, height=self.npixels, bg='lightblue')
+        #self.cheese_canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
         # show stuff on the terminal
         print 'row genes:'
         begin, end = row_index_range
