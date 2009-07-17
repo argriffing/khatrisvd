@@ -139,15 +139,18 @@ class EastDendrogramWindow:
         self.root = root
         self.label_to_leaf = label_to_leaf
         # make the canvas
-        self.canvas = Tkinter.Canvas(self.parent, width=10, height=self.npixels)
+        self._create_initial_canvas()
         # initialize some junk that will be created when there is actually a dendrogram
         self.im = None
         self.nleaves = None
         self.tkim = None
 
-    def on_selection(self, index_range):
+    def _create_initial_canvas(self):
+        self.canvas = Tkinter.Canvas(self.parent, width=10, height=self.npixels)
+
+    def _create_pil_image(self, index_range):
         """
-        Draw a new dendrogram.
+        Create the PIL image for the new dendrogram.
         @param row_range: the begin and end indices
         """
         # create the stable subtree
@@ -161,10 +164,16 @@ class EastDendrogramWindow:
         height_gap = 3
         image_height = self.npixels
         image_width = dendro.get_dendrogram_height(cloned, height_gap)
-        print 'image width:', image_width
-        print 'image height:', image_height
         self.im = Image.new('RGB', (image_width, image_height), 'white')
         dendro.draw_dendrogram(cloned, breadth_gap, height_gap, self.on_draw_line)
+
+    def on_selection(self, index_range):
+        """
+        Draw a new dendrogram.
+        @param row_range: the begin and end indices
+        """
+        self._create_pil_image(index_range)
+        image_width, image_height = self.im.size
         # create the dendrogram tkinter image
         self.tkim = ImageTk.PhotoImage(self.im)
         # remake the canvas with the new image
@@ -189,6 +198,26 @@ class EastDendrogramWindow:
         elif b == d:
             for breadth_offset in range(min(a, c), max(a, c) + 1):
                 self.im.putpixel((b, initial_breadth_offset + breadth_offset), black)
+
+
+class SouthHighDendrogramWindow(EastDendrogramWindow):
+    """
+    Draw a dendrogram below the high zoom correlation window.
+    This is just a rotated and reflected transformation of the EastDendrogramWindow image.
+    """
+
+    def _create_pil_image(self, index_range):
+        """
+        @param row_range: the begin and end indices
+        """
+        # create the image
+        EastDendrogramWindow._create_pil_image(self, index_range)
+        # transform the image
+        self.im = self.im.transpose(Image.ROTATE_90)
+        self.im = self.im.transpose(Image.FLIP_TOP_BOTTOM)
+
+    def _create_initial_canvas(self):
+        self.canvas = Tkinter.Canvas(self.parent, width=self.npixels, height=10)
 
 
 class LowZoom:
@@ -454,9 +483,6 @@ class Main:
         self.repack()
         # initialize the connections among the windows
         self._connect_windows()
-        # cache some of the information
-        # TODO this information could go into other child windows
-        #self.ordered_gene_names = ordered_gene_names
 
     def _init_windows(self, low_zoom_image, Z, ordered_names):
         """
@@ -471,16 +497,20 @@ class Main:
         self.high_zoom = HighZoom(self, self.parent, self.npixels, Z, nindices)
         self.gene_name_window = GeneNameWindow(self, self.parent, self.npixels, ordered_names)
         self.east_dendrogram = EastDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
+        self.south_high_dendrogram = SouthHighDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
 
     def repack(self):
         """
         Redo the layouts.
         """
-        self.low_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
-        self.mid_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
-        self.high_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
-        self.gene_name_window.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
-        self.east_dendrogram.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
+        # define the first row of the grid
+        self.low_zoom.canvas.grid(row=0, column=0)
+        self.mid_zoom.canvas.grid(row=0, column=1)
+        self.high_zoom.canvas.grid(row=0, column=2)
+        self.gene_name_window.canvas.grid(row=0, column=3)
+        self.east_dendrogram.canvas.grid(row=0, column=4)
+        # define the second row of the grid
+        self.south_high_dendrogram.canvas.grid(row=1, column=2)
 
     def _connect_windows(self):
         """
@@ -496,9 +526,7 @@ class Main:
         """
         self.gene_name_window.on_selection(row_index_range)
         self.east_dendrogram.on_selection(row_index_range)
-        # FIXME this cheese_canvas stuff is temporary
-        #self.cheese_canvas = Tkinter.Canvas(self.container, width=10, height=self.npixels, bg='lightblue')
-        #self.cheese_canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
+        self.south_high_dendrogram.on_selection(column_index_range)
         # show stuff on the terminal
         """
         print 'row genes:'
