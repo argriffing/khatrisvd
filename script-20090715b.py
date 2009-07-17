@@ -108,15 +108,21 @@ class MidZoom:
     Show one pixel per correlation coefficient.
     """
 
-    def __init__(self, parent, npixels, correlation_sqrt):
+    def __init__(self, parent, npixels, Z, nindices):
         """
         @param parent: the parent container
         @param npixels: the width and height of the canvas
-        @param correlation_sqrt: this matrix times its transpose gives the correlation matrix
+        @param Z: None or this matrix times its transpose gives the correlation matrix
+        @param nindices: the number of rows and column in the correlation matrix
         """
         self.parent = parent
         self.npixels = npixels
-        self.Z = correlation_sqrt
+        self.Z = Z
+        self.nindices = nindices
+        # do validation
+        if self.Z:
+            if len(self.Z) != self.nindices:
+                raise ValueError('the number of rows in Z should be the same as the number of indices')
         self.canvas = Tkinter.Canvas(self.parent, width=self.npixels, height=self.npixels, bg='lightyellow')
         self.canvas.bind('<Button-1>', self.on_button_down)
         # initialize the image area
@@ -131,14 +137,13 @@ class MidZoom:
         @param index: the center index
         @return: a (begin, end) range
         """
-        nindices = len(self.Z)
         low = index - self.npixels/2
         high = low + self.npixels
         if low < 0:
             low = 0
             high = low + self.npixels
-        elif high > nindices:
-            high = nindices
+        elif high > self.nindices:
+            high = self.nindices
             low = high - self.npixels
         return low, high
 
@@ -150,26 +155,27 @@ class MidZoom:
         # get the new row and column ranges
         self.row_range = self._center_to_range(center_row_index)
         self.column_range = self._center_to_range(center_column_index)
-        # convert the center indices to valid index ranges
-        row_begin, row_end = self.row_range
-        column_begin, column_end = self.column_range
-        # create the correlation matrix
-        R = np.dot(self.Z[row_begin:row_end], self.Z[column_begin:column_end].T)
-        # create the red, green, and blue values
-        red = np.minimum(np.maximum(1.5 - 2.0*np.abs(R - 0.5), 0.0), 1.0)*255
-        green = np.minimum(np.maximum(1.5 - 2.0*np.abs(R), 0.0), 1.0)*255
-        blue = np.minimum(np.maximum(1.5 - 2.0*np.abs(R + 0.5), 0.0), 1.0)*255
-        # create the pil image
-        im = Image.new('RGB', (self.npixels, self.npixels), 'green')
-        for row_index in range(self.npixels):
-            for column_index in range(self.npixels):
-                offset = (row_index, column_index)
-                rgb = (int(red[offset]), int(green[offset]), int(blue[offset]))
-                im.putpixel((column_index, row_index), rgb)
-        # create the tkinter image
-        self.mid_zoom_image = ImageTk.PhotoImage(im)
-        # draw the mid zoom image on the canvas
-        self.canvas.create_image(0, 0, image=self.mid_zoom_image, anchor=Tkinter.NW)
+        if self.Z:
+            # convert the center indices to valid index ranges
+            row_begin, row_end = self.row_range
+            column_begin, column_end = self.column_range
+            # create the correlation matrix
+            R = np.dot(self.Z[row_begin:row_end], self.Z[column_begin:column_end].T)
+            # create the red, green, and blue values
+            red = np.minimum(np.maximum(1.5 - 2.0*np.abs(R - 0.5), 0.0), 1.0)*255
+            green = np.minimum(np.maximum(1.5 - 2.0*np.abs(R), 0.0), 1.0)*255
+            blue = np.minimum(np.maximum(1.5 - 2.0*np.abs(R + 0.5), 0.0), 1.0)*255
+            # create the pil image
+            im = Image.new('RGB', (self.npixels, self.npixels), 'green')
+            for row_index in range(self.npixels):
+                for column_index in range(self.npixels):
+                    offset = (row_index, column_index)
+                    rgb = (int(red[offset]), int(green[offset]), int(blue[offset]))
+                    im.putpixel((column_index, row_index), rgb)
+            # create the tkinter image
+            self.mid_zoom_image = ImageTk.PhotoImage(im)
+            # draw the mid zoom image on the canvas
+            self.canvas.create_image(0, 0, image=self.mid_zoom_image, anchor=Tkinter.NW)
 
     def on_button_down(self, event):
         """
@@ -199,22 +205,28 @@ class HighZoom:
     Show multiple pixels per correlation coefficient.
     """
 
-    def __init__(self, parent, npixels, correlation_sqrt, ordered_names):
+    def __init__(self, parent, npixels, Z, nindices):
         """
         @param parent: the parent container
         @param npixels: the width and height of the canvas
-        @param correlation_sqrt: this matrix times its transpose gives the correlation matrix
-        @param ordered_names: ordered gene names
+        @param Z: None or this matrix times its transpose gives the correlation matrix
+        @param nindices: the number of rows and column in the correlation matrix
         """
         # save the args
         self.parent = parent
         self.npixels = npixels
-        self.Z = correlation_sqrt
-        self.ordered_names = ordered_names
+        self.Z = Z
+        self.nindices = nindices
+        # do validation
+        if self.Z:
+            if len(self.Z) != self.nindices:
+                raise ValueError('the number of rows in Z should be the same as the number of indices')
         # each correlation coefficient is represented by a block this many pixels wide
         self.blocksize = 10
         # make the window
         self.canvas = Tkinter.Canvas(self.parent, width=self.npixels, height=self.npixels, bg='lightblue')
+        # tell this function when a range of indices has been zoomed to
+        self.selection_target_function = None
 
     def _center_to_range(self, index):
         """
@@ -223,16 +235,14 @@ class HighZoom:
         """
         # calculate the number of correlation coefficient rows and columns representable per screen
         nindices_visible = self.npixels / self.blocksize
-        # calculate the total number of indices in the correlation matrix
-        nindices_total = len(self.Z)
         # get the range of visible indices
         low = index - nindices_visible / 2
         high = low + nindices_visible
         if low < 0:
             low = 0
             high = low + nindices_visible
-        elif high > nindices_total:
-            high = nindices_total
+        elif high > self.nindices:
+            high = self.nindices
             low = high - nindices_visible
         return low, high
 
@@ -244,32 +254,36 @@ class HighZoom:
         # get the new row and column ranges
         self.row_range = self._center_to_range(center_row_index)
         self.column_range = self._center_to_range(center_column_index)
-        # convert the center indices to valid index ranges
-        row_begin, row_end = self.row_range
-        column_begin, column_end = self.column_range
-        # create the correlation matrix
-        R = np.dot(self.Z[row_begin:row_end], self.Z[column_begin:column_end].T)
-        # create the red, green, and blue values
-        red = np.minimum(np.maximum(1.5 - 2.0*np.abs(R - 0.5), 0.0), 1.0)*255
-        green = np.minimum(np.maximum(1.5 - 2.0*np.abs(R), 0.0), 1.0)*255
-        blue = np.minimum(np.maximum(1.5 - 2.0*np.abs(R + 0.5), 0.0), 1.0)*255
-        # calculate the number of correlation coefficient rows and columns representable per screen
-        nindices_visible = self.npixels / self.blocksize
-        # create the pil image
-        im = Image.new('RGB', (self.npixels, self.npixels), 'green')
-        for row_index in range(nindices_visible):
-            for column_index in range(nindices_visible):
-                offset = (row_index, column_index)
-                rgb = (int(red[offset]), int(green[offset]), int(blue[offset]))
-                for i in range(self.blocksize):
-                    for j in range(self.blocksize):
-                        x = column_index*self.blocksize + i
-                        y = row_index*self.blocksize + j
-                        im.putpixel((x, y), rgb)
-        # create the tkinter image
-        self.mid_zoom_image = ImageTk.PhotoImage(im)
-        # draw the mid zoom image on the canvas
-        self.canvas.create_image(0, 0, image=self.mid_zoom_image, anchor=Tkinter.NW)
+        if self.Z:
+            # convert the center indices to valid index ranges
+            row_begin, row_end = self.row_range
+            column_begin, column_end = self.column_range
+            # create the correlation matrix
+            R = np.dot(self.Z[row_begin:row_end], self.Z[column_begin:column_end].T)
+            # create the red, green, and blue values
+            red = np.minimum(np.maximum(1.5 - 2.0*np.abs(R - 0.5), 0.0), 1.0)*255
+            green = np.minimum(np.maximum(1.5 - 2.0*np.abs(R), 0.0), 1.0)*255
+            blue = np.minimum(np.maximum(1.5 - 2.0*np.abs(R + 0.5), 0.0), 1.0)*255
+            # calculate the number of correlation coefficient rows and columns representable per screen
+            nindices_visible = self.npixels / self.blocksize
+            # create the pil image
+            im = Image.new('RGB', (self.npixels, self.npixels), 'green')
+            for row_index in range(nindices_visible):
+                for column_index in range(nindices_visible):
+                    offset = (row_index, column_index)
+                    rgb = (int(red[offset]), int(green[offset]), int(blue[offset]))
+                    for i in range(self.blocksize):
+                        for j in range(self.blocksize):
+                            x = column_index*self.blocksize + i
+                            y = row_index*self.blocksize + j
+                            im.putpixel((x, y), rgb)
+            # create the tkinter image
+            self.mid_zoom_image = ImageTk.PhotoImage(im)
+            # draw the mid zoom image on the canvas
+            self.canvas.create_image(0, 0, image=self.mid_zoom_image, anchor=Tkinter.NW)
+        # some indices have been selected
+        if self.selection_target_function:
+            self.selection_target_function(self.row_range, self.column_range)
 
 
 class Main:
@@ -288,16 +302,17 @@ class Main:
         raw_pil_image = Image.open(low_zoom_image_filename)
         low_zoom_pil_image = raw_pil_image.resize((self.npixels, self.npixels), Image.ANTIALIAS)
         low_zoom_image = ImageTk.PhotoImage(low_zoom_pil_image)
-        # create the standardized and sorted data matrix
-        print 'creating the ordered correlation square root...'
-        X = util.file_to_comma_separated_matrix(data_filename, has_headers=True)
-        Z = khorr.get_standardized_matrix(X)
-        root = mtree.newick_file_to_mtree(tree_filename)
-        Z = np.vstack(Z[row_index] for row_index in root.ordered_labels())
         # create the list of ordered gene names
         print 'creating the list of ordered gene names...'
+        root = mtree.newick_file_to_mtree(tree_filename)
         names = get_gene_names(data_filename)
         ordered_gene_names = [names[row_index] for row_index in root.ordered_labels()]
+        # create the standardized and sorted data matrix
+        #print 'creating the ordered correlation square root...'
+        #X = util.file_to_comma_separated_matrix(data_filename, has_headers=True)
+        #Z = khorr.get_standardized_matrix(X)
+        #Z = np.vstack(Z[row_index] for row_index in root.ordered_labels())
+        Z = None
         # make a container to help with the layout
         self.container = Tkinter.Frame(parent)
         self.container.pack()
@@ -305,12 +320,15 @@ class Main:
         self._init_windows(low_zoom_image, Z, ordered_gene_names)
         # initialize the connections among the windows
         self._connect_windows()
+        # cache some of the information
+        # TODO this information could go into other child windows
+        self.ordered_gene_names = ordered_gene_names
 
-    def _init_windows(self, low_zoom_image, correlation_sqrt, ordered_names):
+    def _init_windows(self, low_zoom_image, Z, ordered_names):
         """
         Initialize the windows individually.
         @param low_zoom_image: a resized tkinter image
-        @param correlation_sqrt: a standardized and sorted square root of the correlation matrix
+        @param Z: None or a standardized and sorted square root of the correlation matrix
         @param names: ordered gene names or probeset ids
         """
         # initialize the low-zoom window
@@ -318,10 +336,10 @@ class Main:
         self.low_zoom = LowZoom(self.container, self.npixels, low_zoom_image, nindices)
         self.low_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
         # initialize the mid-zoom window
-        self.mid_zoom = MidZoom(self.container, self.npixels, correlation_sqrt)
+        self.mid_zoom = MidZoom(self.container, self.npixels, Z, nindices)
         self.mid_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
         # initialize the high-zoom window
-        self.high_zoom = HighZoom(self.container, self.npixels, correlation_sqrt, ordered_names)
+        self.high_zoom = HighZoom(self.container, self.npixels, Z, nindices)
         self.high_zoom.canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
 
     def _connect_windows(self):
@@ -330,6 +348,24 @@ class Main:
         """
         self.low_zoom.zoom_target_function = self.mid_zoom.on_zoom
         self.mid_zoom.zoom_target_function = self.high_zoom.on_zoom
+        self.high_zoom.selection_target_function = self.on_selection
+
+    def on_selection(self, row_index_range, column_index_range):
+        """
+        @param index_range: the begin and end indices of a range
+        """
+        # FIXME this cheese_canvas stuff is temporary
+        self.cheese_canvas = Tkinter.Canvas(self.container, width=10, height=self.npixels, bg='lightblue')
+        self.cheese_canvas.pack(side=Tkinter.LEFT, fill=Tkinter.BOTH, expand=Tkinter.YES)
+        # show stuff on the terminal
+        print 'row genes:'
+        begin, end = row_index_range
+        for name in self.ordered_gene_names[begin:end]:
+            print name
+        print 'column genes:'
+        begin, end = column_index_range
+        for name in self.ordered_gene_names[begin:end]:
+            print name
 
 
 def main():
