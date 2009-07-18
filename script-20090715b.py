@@ -120,7 +120,48 @@ class GeneNameWindow:
         self.app.repack()
 
 
-class EastDendrogramWindow:
+class DendrogramWindow:
+    """
+    A virtual base class.
+    """
+
+    def __init__(self, app, parent, npixels, root, label_to_leaf):
+        """
+        @param app: the application object
+        @param parent: the parent container
+        @param npixels: the height of the canvas
+        @param root: the root of the mtree
+        @param label_to_leaf: a map from labels to leaves
+        """
+        self.app = app
+        self.parent = parent
+        self.npixels = npixels
+        self.root = root
+        self.label_to_leaf = label_to_leaf
+        # make the canvas
+        self._create_initial_canvas()
+        # initialize some junk that will be created when there is actually a dendrogram
+        self.im = None
+        self.nleaves = None
+        self.tkim = None
+
+    def on_selection(self, index_range):
+        """
+        Draw a new dendrogram.
+        @param row_range: the begin and end indices
+        """
+        self._create_pil_image(index_range)
+        image_width, image_height = self.im.size
+        # create the dendrogram tkinter image
+        self.tkim = ImageTk.PhotoImage(self.im)
+        # remake the canvas with the new image
+        self.canvas.destroy()
+        self.canvas = Tkinter.Canvas(self.parent, width=image_width, height=image_height)
+        self.canvas.create_image(0, 0, image=self.tkim, anchor=Tkinter.NW)
+        self.app.repack()
+
+
+class EastDendrogramWindow(DendrogramWindow):
     """
     Draw a dendrogram to the right of a correlation window.
     """
@@ -155,7 +196,8 @@ class EastDendrogramWindow:
         """
         # create the stable subtree
         begin, end = index_range
-        leaves = [self.label_to_leaf[label] for label in range(begin, end)]
+        ordered_tips = self.root.ordered_tips()
+        leaves = [ordered_tips[i] for i in range(begin, end)]
         cloned = mtree.leaves_to_subtree(self.root, leaves)
         # create the dendrogram PIL image
         self.nleaves = len(leaves)
@@ -166,21 +208,6 @@ class EastDendrogramWindow:
         image_width = dendro.get_dendrogram_height(cloned, height_gap)
         self.im = Image.new('RGB', (image_width, image_height), 'white')
         dendro.draw_dendrogram(cloned, breadth_gap, height_gap, self.on_draw_line)
-
-    def on_selection(self, index_range):
-        """
-        Draw a new dendrogram.
-        @param row_range: the begin and end indices
-        """
-        self._create_pil_image(index_range)
-        image_width, image_height = self.im.size
-        # create the dendrogram tkinter image
-        self.tkim = ImageTk.PhotoImage(self.im)
-        # remake the canvas with the new image
-        self.canvas.destroy()
-        self.canvas = Tkinter.Canvas(self.parent, width=image_width, height=image_height)
-        self.canvas.create_image(0, 0, image=self.tkim, anchor=Tkinter.NW)
-        self.app.repack()
 
     def on_draw_line(self, line):
         """
@@ -204,6 +231,7 @@ class SouthHighDendrogramWindow(EastDendrogramWindow):
     """
     Draw a dendrogram below the high zoom correlation window.
     This is just a rotated and reflected transformation of the EastDendrogramWindow image.
+    However, it relates columns instead of rows.
     """
 
     def _create_pil_image(self, index_range):
@@ -218,6 +246,53 @@ class SouthHighDendrogramWindow(EastDendrogramWindow):
 
     def _create_initial_canvas(self):
         self.canvas = Tkinter.Canvas(self.parent, width=self.npixels, height=10)
+
+
+class SouthMidDendrogramWindow(DendrogramWindow):
+    """
+    Draw a dendrogram below the mid zoom correlation window.
+    There should be zero breadth gap for this dendrogram.
+    """
+
+    def _create_initial_canvas(self):
+        self.canvas = Tkinter.Canvas(self.parent, width=self.npixels, height=10)
+
+    def _create_pil_image(self, index_range):
+        """
+        Create the PIL image for the new dendrogram.
+        @param row_range: the begin and end indices
+        """
+        # create the stable subtree
+        begin, end = index_range
+        ordered_tips = self.root.ordered_tips()
+        leaves = [ordered_tips[i] for i in range(begin, end)]
+        cloned = mtree.leaves_to_subtree(self.root, leaves)
+        # create the dendrogram PIL image
+        breadth_gap = 0
+        height_gap = 3
+        image_height = self.npixels
+        image_width = dendro.get_dendrogram_height(cloned, height_gap)
+        self.im = Image.new('RGB', (image_width, image_height), 'white')
+        dendro.draw_dendrogram(cloned, breadth_gap, height_gap, self.on_draw_line)
+        # it would be possible to draw this directly instead of flipping it
+        self.im = self.im.transpose(Image.ROTATE_90)
+        self.im = self.im.transpose(Image.FLIP_TOP_BOTTOM)
+
+    def on_draw_line(self, line):
+        """
+        This is called by the dendrogram builder.
+        This assumes that there is a self.im image of the correct size.
+        @param line: each endpoint is a (breadth_offset, height_offset) pair
+        """
+        black = (0, 0, 0)
+        ((a, b), (c, d)) = line
+        if a == c:
+            for height_offset in range(min(b, d), max(b, d) + 1):
+                self.im.putpixel((height_offset, a), black)
+        elif b == d:
+            for breadth_offset in range(min(a, c), max(a, c) + 1):
+                self.im.putpixel((b, breadth_offset), black)
+
 
 
 class LowZoom:
@@ -291,6 +366,7 @@ class MidZoom:
         self.column_range = None
         # initialize the zoom target
         self.zoom_target_function = None
+        self.selection_target_function = None
 
     def _center_to_range(self, index):
         """
@@ -336,6 +412,9 @@ class MidZoom:
             self.mid_zoom_image = ImageTk.PhotoImage(im)
             # draw the mid zoom image on the canvas
             self.canvas.create_image(0, 0, image=self.mid_zoom_image, anchor=Tkinter.NW)
+        # some indices have been selected
+        if self.selection_target_function:
+            self.selection_target_function(self.row_range, self.column_range)
 
     def on_button_down(self, event):
         """
@@ -469,11 +548,11 @@ class Main:
         names = get_gene_names(data_filename)
         ordered_gene_names = [names[row_index] for row_index in self.mtree_root.ordered_labels()]
         # create the standardized and sorted data matrix
-        #print 'creating the ordered correlation square root...'
-        #X = util.file_to_comma_separated_matrix(data_filename, has_headers=True)
-        #Z = khorr.get_standardized_matrix(X)
-        #Z = np.vstack(Z[row_index] for row_index in self.mtree_root.ordered_labels())
-        Z = None
+        print 'creating the ordered correlation square root...'
+        X = util.file_to_comma_separated_matrix(data_filename, has_headers=True)
+        Z = khorr.get_standardized_matrix(X)
+        Z = np.vstack(Z[row_index] for row_index in self.mtree_root.ordered_labels())
+        #Z = None
         # create the label to leaf map
         print 'creating the map from labels to leaves...'
         self.label_to_leaf = dict((tip.label, tip) for tip in self.mtree_root.ordered_tips())
@@ -498,6 +577,7 @@ class Main:
         self.gene_name_window = GeneNameWindow(self, self.parent, self.npixels, ordered_names)
         self.east_dendrogram = EastDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
         self.south_high_dendrogram = SouthHighDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
+        self.south_mid_dendrogram = SouthMidDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
 
     def repack(self):
         """
@@ -510,7 +590,8 @@ class Main:
         self.gene_name_window.canvas.grid(row=0, column=3)
         self.east_dendrogram.canvas.grid(row=0, column=4)
         # define the second row of the grid
-        self.south_high_dendrogram.canvas.grid(row=1, column=2)
+        self.south_mid_dendrogram.canvas.grid(row=1, column=1, sticky=Tkinter.N)
+        self.south_high_dendrogram.canvas.grid(row=1, column=2, sticky=Tkinter.N)
 
     def _connect_windows(self):
         """
@@ -518,26 +599,24 @@ class Main:
         """
         self.low_zoom.zoom_target_function = self.mid_zoom.on_zoom
         self.mid_zoom.zoom_target_function = self.high_zoom.on_zoom
-        self.high_zoom.selection_target_function = self.on_selection
+        self.mid_zoom.selection_target_function = self.on_mid_selection
+        self.high_zoom.selection_target_function = self.on_high_selection
 
-    def on_selection(self, row_index_range, column_index_range):
+    def on_mid_selection(self, row_index_range, column_index_range):
         """
-        @param index_range: the begin and end indices of a range
+        @param row_index_range: the begin and end indices of a range
+        @param column_index_range: the begin and end indices of a range
+        """
+        self.south_mid_dendrogram.on_selection(column_index_range)
+
+    def on_high_selection(self, row_index_range, column_index_range):
+        """
+        @param row_index_range: the begin and end indices of a range
+        @param column_index_range: the begin and end indices of a range
         """
         self.gene_name_window.on_selection(row_index_range)
         self.east_dendrogram.on_selection(row_index_range)
         self.south_high_dendrogram.on_selection(column_index_range)
-        # show stuff on the terminal
-        """
-        print 'row genes:'
-        begin, end = row_index_range
-        for name in self.ordered_gene_names[begin:end]:
-            print name
-        print 'column genes:'
-        begin, end = column_index_range
-        for name in self.ordered_gene_names[begin:end]:
-            print name
-        """
 
 
 def main():

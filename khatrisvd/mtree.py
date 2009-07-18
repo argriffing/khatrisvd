@@ -284,6 +284,9 @@ def leaves_to_subtree(root, leaves):
     for node in cloned_root.preorder():
         if node.parent and node.degree() == 2:
             node.remove_stable_degree_two_non_root()
+    # remove the root if it is degree 1
+    if cloned_root.degree() == 1:
+        cloned_root = cloned_root.remove()
     # return the cloned root
     return cloned_root
 
@@ -364,8 +367,16 @@ class TestMe(unittest.TestCase):
         expected = newick
         self.assertEqual(expected, observed)
 
-    def test_leaves_to_subtree(self):
+    def test_leaves_to_subtree_a(self):
         root = create_tree([[0, [1, 2]], 3, [4, 5, 6]])
+        leaves = [tip for tip in root.preorder() if tip.label in [1,2,3,4]]
+        cloned = leaves_to_subtree(root, leaves)
+        expected = '((1, 2), 3, 4);'
+        observed = cloned.get_newick_string()
+        self.assertEqual(expected, observed)
+
+    def test_leaves_to_subtree_b(self):
+        root = create_tree([[[0, [1, 2]], 3, [4, 5, 6]]])
         leaves = [tip for tip in root.preorder() if tip.label in [1,2,3,4]]
         cloned = leaves_to_subtree(root, leaves)
         expected = '((1, 2), 3, 4);'
