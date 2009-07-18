@@ -91,8 +91,10 @@ class GeneNameWindow:
     def on_selection(self, index_range):
         begin, end = index_range
         selected_names = [self.ordered_names[i] for i in range(begin, end)]
+        transparent = (0, 0, 0, 0)
+        black = (0, 0, 0, 1)
         # create a dummy image and get some required dimensions
-        dummy = Image.new('RGB', (10, 10), 'white')
+        dummy = Image.new('RGBA', (10, 10), transparent)
         draw = ImageDraw.Draw(dummy)
         width_height_pairs = [draw.textsize(name) for name in selected_names]
         max_width = max(width for width, height in width_height_pairs)
@@ -101,7 +103,7 @@ class GeneNameWindow:
         # draw the gene names on a new image
         image_width = max_width
         image_height = self.npixels
-        im = Image.new('RGB', (image_width, image_height), 'white')
+        im = Image.new('RGBA', (image_width, image_height), transparent)
         draw = ImageDraw.Draw(im)
         n = len(selected_names)
         blocksize = self.npixels / n
@@ -110,7 +112,7 @@ class GeneNameWindow:
             x = 0
             dy = max((blocksize - h) / 2, 0)
             y = (i * self.npixels) / n + dy
-            draw.text((x, y), name, fill='black')
+            draw.text((x, y), name, fill=black)
         del draw
         # create the tkinter gene name image
         self.tkim = ImageTk.PhotoImage(im)
@@ -203,7 +205,7 @@ class EastDendrogramWindow(DendrogramWindow):
         height_gap = 3
         image_height = self.npixels
         image_width = dendro.get_dendrogram_height(cloned, height_gap)
-        self.im = Image.new('RGB', (image_width, image_height), 'white')
+        self.im = Image.new('RGBA', (image_width, image_height), (0, 0, 0, 0))
         dendro.draw_dendrogram(cloned, breadth_gap, height_gap, self.on_draw_line)
 
     def on_draw_line(self, line):
@@ -214,7 +216,7 @@ class EastDendrogramWindow(DendrogramWindow):
         """
         blocksize = self.npixels / self.nleaves
         initial_breadth_offset = blocksize / 2
-        black = (0, 0, 0)
+        black = (0, 0, 0, 1)
         ((a, b), (c, d)) = line
         if a == c:
             for height_offset in range(min(b, d), max(b, d) + 1):
@@ -269,7 +271,7 @@ class SouthMidDendrogramWindow(DendrogramWindow):
         height_gap = 3
         image_height = self.npixels
         image_width = dendro.get_dendrogram_height(cloned, height_gap)
-        self.im = Image.new('RGB', (image_width, image_height), 'white')
+        self.im = Image.new('RGBA', (image_width, image_height), (0, 0, 0, 0))
         dendro.draw_dendrogram(cloned, breadth_gap, height_gap, self.on_draw_line)
         # it would be possible to draw this directly instead of flipping it
         self.im = self.im.transpose(Image.ROTATE_90)
@@ -281,7 +283,7 @@ class SouthMidDendrogramWindow(DendrogramWindow):
         This assumes that there is a self.im image of the correct size.
         @param line: each endpoint is a (breadth_offset, height_offset) pair
         """
-        black = (0, 0, 0)
+        black = (0, 0, 0, 1)
         ((a, b), (c, d)) = line
         if a == c:
             for height_offset in range(min(b, d), max(b, d) + 1):
