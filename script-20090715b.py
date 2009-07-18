@@ -293,6 +293,23 @@ class SouthMidDendrogramWindow(DendrogramWindow):
                 self.im.putpixel((b, breadth_offset), black)
 
 
+def center_to_range(center_index, nindices_visible, nindices_total):
+    """
+    @param center_index: the index intended to be in the center of the range
+    @param nindices_visible: the number of indices that can be displayed
+    @param nindices_total: the total number of indices
+    @return: a (begin, end) range
+    """
+    low = center_index - nindices_visible / 2
+    high = low + nindices_visible
+    if low < 0:
+        low = 0
+        high = low + nindices_visible
+    elif high > nindices_total:
+        high = nindices_total
+        low = high - nindices_visible
+    return low, high
+
 
 class LowZoom:
     """
@@ -366,29 +383,16 @@ class MidZoom:
         self.zoom_target_function = None
         self.selection_target_function = None
 
-    def _center_to_range(self, index):
-        """
-        @param index: the center index
-        @return: a (begin, end) range
-        """
-        low = index - self.npixels/2
-        high = low + self.npixels
-        if low < 0:
-            low = 0
-            high = low + self.npixels
-        elif high > self.nindices:
-            high = self.nindices
-            low = high - self.npixels
-        return low, high
-
     def on_zoom(self, center_row_index, center_column_index):
         """
         @param center_row_index: the center row index if possible
         @param center_column_index: the center column index if possible
         """
         # get the new row and column ranges
-        self.row_range = self._center_to_range(center_row_index)
-        self.column_range = self._center_to_range(center_column_index)
+        nindices_total = self.nindices
+        nindices_visible = self.npixels
+        self.row_range = center_to_range(center_row_index, nindices_visible, nindices_total)
+        self.column_range = center_to_range(center_column_index, nindices_visible, nindices_total)
         if self.Z is not None:
             # convert the center indices to valid index ranges
             row_begin, row_end = self.row_range
@@ -465,32 +469,16 @@ class HighZoom:
         # tell this function when a range of indices has been zoomed to
         self.selection_target_function = None
 
-    def _center_to_range(self, index):
-        """
-        @param index: the center index
-        @return: a (begin, end) range
-        """
-        # calculate the number of correlation coefficient rows and columns representable per screen
-        nindices_visible = self.npixels / self.blocksize
-        # get the range of visible indices
-        low = index - nindices_visible / 2
-        high = low + nindices_visible
-        if low < 0:
-            low = 0
-            high = low + nindices_visible
-        elif high > self.nindices:
-            high = self.nindices
-            low = high - nindices_visible
-        return low, high
-
     def on_zoom(self, center_row_index, center_column_index):
         """
         @param center_row_index: the center row index if possible
         @param center_column_index: the center column index if possible
         """
         # get the new row and column ranges
-        self.row_range = self._center_to_range(center_row_index)
-        self.column_range = self._center_to_range(center_column_index)
+        nindices_total = self.nindices
+        nindices_visible = self.npixels / self.blocksize
+        self.row_range = center_to_range(center_row_index, nindices_visible, nindices_total)
+        self.column_range = center_to_range(center_column_index, nindices_visible, nindices_total)
         if self.Z is not None:
             # convert the center indices to valid index ranges
             row_begin, row_end = self.row_range

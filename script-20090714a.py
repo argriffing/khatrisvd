@@ -27,16 +27,16 @@ def main():
     X = heatmap.get_permuted_rows(X, ordered_indices)
     # create the standardized data for drawing the small heatmap
     Z = khorr.get_standardized_matrix(X)
-    color_function = gradient.correlation_to_rgb
     # show the big heatmap
     pathname_out = 'big.png'
+    color_function = gradient.correlation_to_rgb
     im = heatmap.get_heatmap_image(np.dot(Z, Z.T), color_function)
     fout = open(pathname_out, 'wb')
     im.save(fout)
     fout.close()
     # show the small heatmap
     pathname_out = 'small.png'
-    im = heatmap.get_reduced_heatmap_image(Z, color_function, reduction=5)
+    im = heatmap.get_reduced_heatmap_image(Z, reduction=5)
     fout = open(pathname_out, 'wb')
     im.save(fout)
     fout.close()
