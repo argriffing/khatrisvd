@@ -29,6 +29,7 @@ Abbreviations are im for PIL image and tkim for a tk image object.
 
 import Tkinter
 import sys
+import optparse
 
 import ImageTk
 import Image
@@ -125,19 +126,17 @@ class DendrogramWindow:
     A virtual base class.
     """
 
-    def __init__(self, app, parent, npixels, root, label_to_leaf):
+    def __init__(self, app, parent, npixels, root):
         """
         @param app: the application object
         @param parent: the parent container
         @param npixels: the height of the canvas
         @param root: the root of the mtree
-        @param label_to_leaf: a map from labels to leaves
         """
         self.app = app
         self.parent = parent
         self.npixels = npixels
         self.root = root
-        self.label_to_leaf = label_to_leaf
         # make the canvas
         self._create_initial_canvas()
         # initialize some junk that will be created when there is actually a dendrogram
@@ -166,19 +165,17 @@ class EastDendrogramWindow(DendrogramWindow):
     Draw a dendrogram to the right of a correlation window.
     """
 
-    def __init__(self, app, parent, npixels, root, label_to_leaf):
+    def __init__(self, app, parent, npixels, root):
         """
         @param app: the application object
         @param parent: the parent container
         @param npixels: the height of the canvas
         @param root: the root of the mtree
-        @param label_to_leaf: a map from labels to leaves
         """
         self.app = app
         self.parent = parent
         self.npixels = npixels
         self.root = root
-        self.label_to_leaf = label_to_leaf
         # make the canvas
         self._create_initial_canvas()
         # initialize some junk that will be created when there is actually a dendrogram
@@ -326,7 +323,6 @@ class LowZoom:
         """
         # get the point clicked on the window
         pt = (event.x, event.y)
-        print 'clicked the low zoom window at', pt
         # if a target is registered then get the center indices
         if self.zoom_target_function:
             # calculate the center column from the x pixel
@@ -422,7 +418,6 @@ class MidZoom:
         """
         # get the point clicked on the window
         pt = (event.x, event.y)
-        print 'clicked the mid zoom window at', pt
         # if a target is registered then get the center indices
         if self.zoom_target_function:
             if self.row_range and self.column_range:
@@ -575,9 +570,9 @@ class Main:
         self.mid_zoom = MidZoom(self, self.parent, self.npixels, Z, nindices)
         self.high_zoom = HighZoom(self, self.parent, self.npixels, Z, nindices)
         self.gene_name_window = GeneNameWindow(self, self.parent, self.npixels, ordered_names)
-        self.east_dendrogram = EastDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
-        self.south_high_dendrogram = SouthHighDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
-        self.south_mid_dendrogram = SouthMidDendrogramWindow(self, self.parent, self.npixels, self.mtree_root, self.label_to_leaf)
+        self.east_dendrogram = EastDendrogramWindow(self, self.parent, self.npixels, self.mtree_root)
+        self.south_high_dendrogram = SouthHighDendrogramWindow(self, self.parent, self.npixels, self.mtree_root)
+        self.south_mid_dendrogram = SouthMidDendrogramWindow(self, self.parent, self.npixels, self.mtree_root)
 
     def repack(self):
         """
