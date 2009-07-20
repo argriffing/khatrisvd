@@ -29,7 +29,6 @@ Abbreviations are im for PIL image and tkim for a tk image object.
 
 
 import Tkinter
-import sys
 import optparse
 
 import ImageTk
@@ -514,15 +513,18 @@ class HighZoom:
 
 class Main:
 
-    def __init__(self, parent, data_filename, tree_filename, low_zoom_image_filename):
+    def __init__(self, parent, npixels, data_filename, tree_filename, low_zoom_image_filename):
         """
         @param parent: the parent frame
-        @param low_zoom_image: the path to a low resolution image
+        @param npixels: larger for larger windows
+        @param data_filename: the path to a csv file
+        @param tree_filename: the path to a newick tree
+        @param low_zoom_image_filename: the path to a low resolution image
         """
         # save some args
         self.parent = parent
         # define some options
-        self.npixels = 300
+        self.npixels = npixels
         # create the tkinter image
         print 'creating the low resolution image...'
         raw_pil_image = Image.open(low_zoom_image_filename)
@@ -606,18 +608,20 @@ class Main:
 
 
 def main():
+    usage = 'usage: %prog [options] <data> <tree> <image>'
+    parser = optparse.OptionParser(usage=usage)
+    parser.add_option('--npixels', dest='npixels', default=300, type='int', help='width and height of each mini-image')
+    options, args = parser.parse_args()
+    if len(args) != 3:
+        parser.error('expected three arguments')
     # get the filenames from the command line
-    usage = 'Usage: python ' + sys.argv[0] + ' <data> <tree> <image>'
-    if len(sys.argv) != 4:
-        print usage
-        return
-    data_filename = sys.argv[1]
-    tree_filename = sys.argv[2]
-    low_zoom_image_filename = sys.argv[3]
+    data_filename = args[0]
+    tree_filename = args[1]
+    low_zoom_image_filename = args[2]
     # initialize tkinter
     root = Tkinter.Tk()
     # create the gui and start the event loop
-    main_object = Main(root, data_filename, tree_filename, low_zoom_image_filename)
+    main_object = Main(root, options.npixels, data_filename, tree_filename, low_zoom_image_filename)
     root.title('large correlation matrix viewer')
     print 'beginning the event loop'
     root.mainloop()
