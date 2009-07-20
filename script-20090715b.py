@@ -3,6 +3,7 @@ This will be a large matrix correlation viewer.
 
 The Ubuntu package name for Image is python-imaging.
 The Ubuntu package name for ImageTk is python-imaging-tk.
+The Ubuntu package name for numpy is python-numpy.
 
 There should be three 300x300 pixel correlation windows laid out
 horizontally, progressing from low zoom to high zoom.
@@ -606,7 +607,7 @@ class Main:
 
 def main():
     # get the filenames from the command line
-    usage = 'python', sys.argv[0], '<data> <tree> <image>'
+    usage = 'Usage: python ' + sys.argv[0] + ' <data> <tree> <image>'
     if len(sys.argv) != 4:
         print usage
         return
@@ -616,7 +617,7 @@ def main():
     # initialize tkinter
     root = Tkinter.Tk()
     # create the gui and start the event loop
-    main = Main(root, data_filename, tree_filename, low_zoom_image_filename)
+    main_object = Main(root, data_filename, tree_filename, low_zoom_image_filename)
     root.title('large correlation matrix viewer')
     print 'beginning the event loop'
     root.mainloop()
